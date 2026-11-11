@@ -115,6 +115,7 @@
 \usepackage[margin=2.2cm]{geometry}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{enumitem}
+\usepackage{tikz}
 \newcommand{\Z}{\mathbb{Z}}
 \newcommand{\N}{\mathbb{N}}
 \newcommand{\Q}{\mathbb{Q}}
