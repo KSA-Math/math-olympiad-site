@@ -144,7 +144,7 @@
       </section>
       <section class="card recommend">
         <h2>Recommend me a problem</h2>
-        <p class="muted small" style="margin:0">Picks a random problem for your level. Classical (starred) problems come up more often.</p>
+        <p class="muted small" style="margin:0">Picks a random problem for your level. Starred problems come up more often.</p>
         <form class="row" id="rec-form">
           <label>Subject
             <select name="s">
@@ -223,7 +223,7 @@
         </div>`).join("")}</div>` : ""}
       <div class="row"><h2 style="margin:0">Problems</h2><span class="muted">${all.length}</span></div>
       <div class="filters" id="filters">
-        <button class="chip" data-f="stars">★ Classical only</button>
+        <button class="chip" data-f="stars">★ Starred only</button>
         <button class="chip" data-f="hard">Hard only</button>
         <button class="chip" data-f="source">With competition source</button>
       </div>
