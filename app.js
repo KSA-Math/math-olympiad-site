@@ -267,7 +267,7 @@
         <dt>Topics</dt><dd>${p.topics.map((t) => topicLink(t, L)).join(" · ")}</dd>
         <dt>Levels</dt><dd>${p.levels.map((x) => esc(levelName(x))).join(", ")}</dd>
         ${originBits.length ? `<dt>Material</dt><dd class="small">${originBits.join("<br>")}</dd>` : ""}
-        ${p.aops ? `<dt>AoPS</dt><dd><a href="${esc(p.aops)}" target="_blank" rel="noopener">${esc(aopsLabel(p))}</a></dd>` : ""}
+        ${p.aops ? `<dt>Link</dt><dd><a href="${esc(p.aops)}" target="_blank" rel="noopener">${esc(aopsLabel(p))}</a></dd>` : ""}
       </dl>
       ${p.needs_check ? `<div class="notice">The statement could not be fully verified against the original (damaged) source files.</div>` : ""}
       ${p.notes ? `<details class="editor-notes"><summary>Notes for editors</summary>${esc(p.notes)}</details>` : ""}
