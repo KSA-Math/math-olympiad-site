@@ -226,6 +226,8 @@ h1 { overflow-wrap: anywhere; }
 .tex-list li.custom { list-style: none; margin-left: -1.2em; }
 .center { text-align: center; margin: .4em 0; }
 .footnote { color: var(--muted); font-size: .92em; }
+.figure { text-align: center; margin: .6em 0; }
+.figure img { max-width: min(100%, 440px); height: auto; background: #fff; border-radius: 8px; padding: 6px; }
 .figure-missing { border: 1px dashed var(--border); color: var(--muted); padding: 10px; border-radius: 8px; text-align: center; font-family: var(--sans); font-size: .9rem; }
 .tex-error { color: var(--hard); }
 .sc { font-variant: small-caps; }

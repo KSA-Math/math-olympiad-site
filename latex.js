@@ -166,6 +166,15 @@
         continue;
       }
 
+      if (name === "includegraphics") {      // figures pre-rendered to SVG by scripts/render_figures.py
+        const gm = /^\s*(\[[^\]]*\])?\s*\{([^}]*)\}/.exec(src.slice(k));
+        if (gm) {
+          flush();
+          out.push(`<div class="figure"><img src="${esc(gm[2])}" alt="Figure" loading="lazy"></div>`);
+          i = k + gm[0].length;
+          continue;
+        }
+      }
       if (FORMAT[name] || name === "footnote") {
         const sp = /^\s*/.exec(src.slice(k))[0].length;
         if (src[k + sp] === "{") {
