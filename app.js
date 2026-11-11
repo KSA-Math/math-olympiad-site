@@ -293,6 +293,9 @@ ${items.join("\n\n")}
           <label>Level
             <select name="L">${LEVELS.map((L) => `<option value="${L}" ${L === lastL ? "selected" : ""}>${esc(levelName(L))}</option>`).join("")}</select>
           </label>
+          <label id="rec-topic-wrap" hidden>Topic
+            <select name="t"></select>
+          </label>
           <button class="btn primary" type="submit">Give me a problem</button>
         </form>
       </section>
@@ -302,10 +305,27 @@ ${items.join("\n\n")}
           ${LEVELS.map((L) => `<div class="card"><h3>${esc(levelName(L))}</h3><div class="muted small">${esc(A.levels[L].description || "")}</div></div>`).join("")}
         </div>
       </section>`;
-    document.getElementById("rec-form").onsubmit = (e) => {
+    // Topic picker appears once a subject is chosen; lists that subject's topics at the chosen level.
+    const form = document.getElementById("rec-form");
+    const wrap = document.getElementById("rec-topic-wrap");
+    const [selS, selL, selT] = ["s", "L", "t"].map((n) => form.querySelector(`[name="${n}"]`));
+    const fillTopics = () => {
+      const s = selS.value, L = Number(selL.value), keep = selT.value || store.get("topic", "");
+      if (s === "any") { wrap.hidden = true; selT.innerHTML = ""; return; }
+      const ts = A.topics.filter((t) => t.subject === s && topicCount(t.id, L) > 0)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      selT.innerHTML = `<option value="">Any topic</option>` + ts.map((t) =>
+        `<option value="${t.id}" ${t.id === keep ? "selected" : ""}>${esc(t.name)} (${topicCount(t.id, L)})</option>`).join("");
+      wrap.hidden = false;
+    };
+    selS.onchange = fillTopics;
+    selL.onchange = fillTopics;
+    fillTopics();
+    form.onsubmit = (e) => {
       e.preventDefault();
-      const f = new FormData(e.target);
-      location.hash = `#/random/${f.get("s")}/${f.get("L")}`;
+      const s = selS.value, L = selL.value, t = selT.value;
+      store.set("topic", t);
+      location.hash = t ? `#/random/topic:${t}/${L}` : `#/random/${s}/${L}`;
     };
   }
 
