@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Olympiad Problem Archive</title>
+  <meta name="description" content="Olympiad mathematics problems from the Saudi national training program, by subject, topic and level.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">
+      <span class="brand-mark" aria-hidden="true">∑</span>
+      <span>Olympiad Problem Archive</span>
+    </a>
+    <nav class="topnav" id="topnav"></nav>
+    <form class="search" id="search-form" role="search">
+      <input id="search-input" type="search" placeholder="Search problems, sources, IDs…" aria-label="Search">
+    </form>
+  </header>
+  <main id="app" tabindex="-1"><p class="loading">Loading…</p></main>
+  <footer class="footer">
+    Problems from the training material of the Saudi Arabian Mathematical Olympiad program (2016–2026),
+    the IMO Shortlist and EGMO. Sources are shown where known.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="data/archive.js"></script>
+  <script src="latex.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
