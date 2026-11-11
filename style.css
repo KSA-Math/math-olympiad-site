@@ -70,7 +70,7 @@ button, select, input { font: inherit; color: inherit; }
 .topnav { display: flex; gap: 4px; flex-wrap: wrap; }
 .topnav a { padding: 4px 10px; border-radius: 6px; color: var(--muted); font-size: .95rem; }
 .topnav a.active, .topnav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
-.search { margin-left: auto; flex: 1 1 220px; max-width: 320px; }
+.search { margin-left: auto; flex: 1 1 150px; max-width: 280px; }
 .search input {
   width: 100%; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--surface);
@@ -175,6 +175,34 @@ details.reveal { border: 1px solid var(--border); border-radius: var(--radius); 
 details.reveal summary { cursor: pointer; padding: 10px 14px; font-weight: 600; }
 details.reveal > div { padding: 0 14px 12px; font-family: var(--serif); }
 .notice { border-left: 4px solid var(--hard); background: var(--surface); padding: 10px 14px; border-radius: 6px; margin-top: 12px; font-size: .92rem; }
+
+/* handout */
+.btn-mini {
+  padding: 2px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);
+  font-size: .82rem; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.btn-mini:hover:not([disabled]) { color: var(--text); background: var(--surface-2); }
+.btn-mini[disabled] { opacity: .35; cursor: default; }
+.add-h.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.handout-controls { display: grid; gap: 8px; margin-bottom: 20px; }
+.handout-controls .field input {
+  margin-left: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); width: min(420px, 70%);
+}
+.handout-title { text-align: center; margin: 10px 0 18px; }
+.handout-list { padding-left: 1.6em; display: grid; gap: 18px; }
+.handout-item { padding-left: 4px; }
+.handout-item::marker { font-weight: 700; }
+.handout-tools { margin-bottom: 4px; font-size: .88rem; }
+.handout-tag { text-align: right; color: var(--muted); font-style: italic; font-size: .9rem; }
+
+@media print {
+  .topbar, .footer, .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  main { padding: 0; max-width: none; }
+  .handout-item { break-inside: avoid; }
+  .statement { font-size: 12pt; }
+}
 
 details.editor-notes { margin-top: 12px; color: var(--muted); font-size: .88rem; }
 details.editor-notes summary { cursor: pointer; }

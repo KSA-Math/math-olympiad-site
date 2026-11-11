@@ -85,10 +85,147 @@
           ${pills(p, L != null)}
           ${p.source ? `<span class="source">${esc(p.source)}</span>` : ""}
           <span class="spacer"></span>
+          ${handoutButton(p)}
           <a class="small" href="#/p/${p.id}">Open →</a>
         </div>
         <div class="statement">${tex(p.statement)}</div>
       </article>`;
+  }
+
+  // ---------- handout (a per-browser list of chosen problems) ----------
+  let handout = store.get("handout", []).filter((id) => byId.has(id));
+  const inHandout = (id) => handout.includes(id);
+  function saveHandout() { store.set("handout", handout); nav(currentNav); }
+  function handoutButton(p) {
+    const on = inHandout(p.id);
+    return `<button class="btn-mini add-h ${on ? "on" : ""}" data-id="${p.id}" title="Add to / remove from your handout">${on ? "✓ In handout" : "+ Handout"}</button>`;
+  }
+  app.addEventListener("click", (e) => {
+    const b = e.target.closest(".add-h");
+    if (!b) return;
+    const id = b.dataset.id;
+    handout = inHandout(id) ? handout.filter((x) => x !== id) : handout.concat(id);
+    saveHandout();
+    document.querySelectorAll(`.add-h[data-id="${id}"]`).forEach((el) => {
+      el.outerHTML = handoutButton(byId.get(id));
+    });
+  });
+
+  const LATEX_PREAMBLE = String.raw`\documentclass[11pt]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{enumitem}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\floor}[1]{\left\lfloor #1 \right\rfloor}
+\newcommand{\ceil}[1]{\left\lceil #1 \right\rceil}
+\newcommand{\abs}[1]{\left| #1 \right|}
+\DeclareMathOperator{\lcm}{lcm}
+\DeclareMathOperator{\ord}{ord}
+\newcommand{\vp}[1]{v_{#1}}
+\newcommand{\legendre}[2]{\left(\tfrac{#1}{#2}\right)}
+\setlength{\parindent}{0pt}
+`;
+
+  function handoutLatex(title, withSources, withIds) {
+    const items = handout.map((id) => byId.get(id)).map((p) => {
+      const tag = [withIds ? p.id : "", withSources && p.source ? p.source : ""].filter(Boolean).join(", ");
+      return `  \\item ${p.statement.trim()}${tag ? `\n\n  \\hfill\\textit{(${tag})}` : ""}`;
+    });
+    return `${LATEX_PREAMBLE}
+\\begin{document}
+\\begin{center}\\Large\\textbf{${title.replace(/[&%$#_{}]/g, (c) => "\\" + c)}}\\end{center}
+\\bigskip
+
+\\begin{enumerate}[label=\\textbf{Problem \\arabic*.}, leftmargin=*, itemsep=1.2em]
+${items.join("\n\n")}
+\\end{enumerate}
+\\end{document}
+`;
+  }
+
+  function viewHandout() {
+    const opts = store.get("handoutOpts", { title: "Problem set", sources: true, ids: false });
+    const list = handout.map((id) => byId.get(id));
+    app.innerHTML = `
+      <div class="crumbs no-print"><a href="#/">Home</a> › Handout</div>
+      <div class="no-print">
+        <h1>Handout</h1>
+        <p class="lead">Collect problems with the <b>+ Handout</b> button on any problem, then print it or export LaTeX.
+          The list is saved in this browser only.</p>
+        ${list.length ? `
+        <div class="card handout-controls">
+          <label class="field">Title <input id="h-title" value="${esc(opts.title)}"></label>
+          <label><input type="checkbox" id="h-sources" ${opts.sources ? "checked" : ""}> Show sources</label>
+          <label><input type="checkbox" id="h-ids" ${opts.ids ? "checked" : ""}> Show problem IDs</label>
+          <div class="row" style="margin-top:10px">
+            <button class="btn primary" id="h-print">Print / save as PDF</button>
+            <button class="btn" id="h-tex">Download .tex</button>
+            <button class="btn" id="h-copy">Copy LaTeX</button>
+            <span class="spacer"></span>
+            <button class="btn" id="h-clear">Clear handout</button>
+          </div>
+        </div>` : `<p class="muted">Your handout is empty.</p>`}
+      </div>
+      <div id="h-doc"></div>`;
+    if (!list.length) return;
+    const doc = document.getElementById("h-doc");
+    const draw = () => {
+      const o = { title: document.getElementById("h-title").value, sources: document.getElementById("h-sources").checked,
+                  ids: document.getElementById("h-ids").checked };
+      store.set("handoutOpts", o);
+      doc.innerHTML = `<h2 class="handout-title">${esc(o.title)}</h2><ol class="handout-list">${handout.map((id, i) => {
+        const p = byId.get(id);
+        const tag = [o.ids ? p.id : "", o.sources && p.source ? p.source : ""].filter(Boolean).join(", ");
+        return `<li class="handout-item">
+          <div class="row no-print handout-tools">
+            <a href="#/p/${p.id}">${p.id}</a>
+            <span class="spacer"></span>
+            <button class="btn-mini" data-move="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
+            <button class="btn-mini" data-move="${i}" data-dir="1" ${i === handout.length - 1 ? "disabled" : ""}>↓</button>
+            <button class="btn-mini" data-remove="${p.id}">Remove</button>
+          </div>
+          <div class="statement">${tex(p.statement)}</div>
+          ${tag ? `<div class="handout-tag">(${esc(tag)})</div>` : ""}
+        </li>`;
+      }).join("")}</ol>`;
+      return o;
+    };
+    draw();
+    ["h-title", "h-sources", "h-ids"].forEach((id) => document.getElementById(id).addEventListener("input", draw));
+    doc.addEventListener("click", (e) => {
+      const mv = e.target.closest("[data-move]"), rm = e.target.closest("[data-remove]");
+      if (mv) {
+        const i = Number(mv.dataset.move), j = i + Number(mv.dataset.dir);
+        [handout[i], handout[j]] = [handout[j], handout[i]];
+        saveHandout(); draw();
+      } else if (rm) {
+        handout = handout.filter((x) => x !== rm.dataset.remove);
+        saveHandout(); handout.length ? draw() : viewHandout();
+      }
+    });
+    document.getElementById("h-print").onclick = () => window.print();
+    document.getElementById("h-tex").onclick = () => {
+      const o = draw();
+      const blob = new Blob([handoutLatex(o.title, o.sources, o.ids)], { type: "application/x-tex" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (o.title.trim() || "handout").replace(/[^\w-]+/g, "_") + ".tex";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    };
+    document.getElementById("h-copy").onclick = (e) => {
+      const o = draw();
+      if (navigator.clipboard) navigator.clipboard.writeText(handoutLatex(o.title, o.sources, o.ids)).then(() => {
+        e.target.textContent = "Copied"; setTimeout(() => (e.target.textContent = "Copy LaTeX"), 1500);
+      }, () => {});
+    };
+    document.getElementById("h-clear").onclick = () => {
+      if (confirm("Remove all problems from the handout?")) { handout = []; saveHandout(); viewHandout(); }
+    };
   }
 
   function clampStatements(root) {
@@ -266,6 +403,8 @@
         ${p.source ? `<dt>Source</dt><dd>${esc(p.source)}</dd>` : ""}
         <dt>Topics</dt><dd>${p.topics.map((t) => topicLink(t, L)).join(" · ")}</dd>
         <dt>Levels</dt><dd>${p.levels.map((x) => esc(levelName(x))).join(", ")}</dd>
+        ${(p.related || []).length ? `<dt>Related</dt><dd>${p.related.filter((r) => byId.has(r)).map((r) =>
+          `<a href="#/p/${r}" title="A variant of this problem">${r}</a>${byId.get(r).source ? ` <span class="muted small">(${esc(byId.get(r).source)})</span>` : ""}`).join(" · ")}</dd>` : ""}
         ${originBits.length ? `<dt>Material</dt><dd class="small">${originBits.join("<br>")}</dd>` : ""}
         ${p.aops ? `<dt>Link</dt><dd><a href="${esc(p.aops)}" target="_blank" rel="noopener">${esc(aopsLabel(p))}</a></dd>` : ""}
       </dl>
@@ -290,6 +429,7 @@
         <div class="card" style="margin-top:14px">${problemBody(p, { level: L })}</div>
         <div class="row" style="margin-top:16px">
           ${t0 ? `<a class="btn" href="#/random/topic:${t0.id}/${L}">Another problem from ${esc(t0.name)}</a>` : ""}
+          ${handoutButton(p).replace("btn-mini", "btn")}
           <button class="btn" id="copy">Copy LaTeX</button>
           <a class="btn" href="${githubEdit(p)}" target="_blank" rel="noopener">Edit on GitHub</a>
           <span class="spacer"></span>
@@ -331,7 +471,7 @@
       <div class="crumbs"><a href="#/">Home</a> › <a href="${back}">${esc(label)}</a> › Recommended</div>
       <div class="row"><h1 style="margin:0">Try this one</h1> <span class="muted">${esc(label)}</span></div>
       <div class="card" style="margin-top:14px">
-        <div class="head row" style="margin-bottom:8px"><a class="pid" href="#/p/${pick.id}"><b>${pick.id}</b></a> ${pills(pick)}</div>
+        <div class="head row" style="margin-bottom:8px"><a class="pid" href="#/p/${pick.id}"><b>${pick.id}</b></a> ${pills(pick)}<span class="spacer"></span>${handoutButton(pick)}</div>
         ${problemBody(pick, { level: L })}
       </div>
       <div class="row" style="margin-top:16px">
@@ -369,10 +509,13 @@
   }
 
   // ---------- router ----------
+  let currentNav = null;
   function nav(active) {
+    currentNav = active;
     document.getElementById("topnav").innerHTML = SUBJECTS.map((s) =>
       `<a href="#/s/${s}/${store.get("level", 2)}" class="${active === s ? "active" : ""}">${esc(subjName(s))}</a>`).join("")
-      + `<a href="#/random/${store.get("subject", "any")}/${store.get("level", 2)}" class="${active === "random" ? "active" : ""}">Recommend</a>`;
+      + `<a href="#/random/${store.get("subject", "any")}/${store.get("level", 2)}" class="${active === "random" ? "active" : ""}">Recommend</a>`
+      + `<a href="#/handout" class="${active === "handout" ? "active" : ""}">Handout${handout.length ? ` (${handout.length})` : ""}</a>`;
   }
 
   function route() {
@@ -385,6 +528,7 @@
     else if (view === "p") { viewProblem(a); active = (byId.get(a) || {}).subject; }
     else if (view === "random") { viewRandom(a || "any", Number(b) || 2); active = "random"; }
     else if (view === "search") viewSearch(parts.slice(1).join("/"));
+    else if (view === "handout") { viewHandout(); active = "handout"; }
     else viewNotFound();
     nav(active);
     window.scrollTo(0, 0);
