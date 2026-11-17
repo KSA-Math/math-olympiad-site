@@ -486,21 +486,27 @@ ${items.join("\n\n")}
       ${p.solution ? `<details class="reveal"><summary>Solution</summary><div>${tex(p.solution)}</div></details>` : ""}`;
   }
 
-  function viewProblem(id) {
+  function viewProblem(id, rec) {
     const p = byId.get(id);
     if (!p) return viewNotFound();
-    const L = p.levels.includes(store.get("level", 0)) ? store.get("level", 0) : p.levels[0];
+    const rs = rec && recScope(rec.scope, rec.L);
+    if (rs) seen.add(p.id);
+    const L = rs && p.levels.includes(rec.L) ? rec.L
+      : p.levels.includes(store.get("level", 0)) ? store.get("level", 0) : p.levels[0];
     const idx = problems.indexOf(p);
     const prev = problems[idx - 1], next = problems[idx + 1];
     const t0 = topicById.get(p.topics[0]);
     app.innerHTML = `
-      <div class="crumbs"><a href="#/">Home</a> › <a href="#/s/${p.subject}/${L}">${esc(subjName(p.subject))}</a>
-        ${t0 ? ` › ${topicLink(t0.id, L)}` : ""}</div>
+      <div class="crumbs">${rs
+        ? `<a href="#/">Home</a> › <a href="${rs.back}">${esc(rs.label)}</a> › Recommended`
+        : `<a href="#/">Home</a> › <a href="#/s/${p.subject}/${L}">${esc(subjName(p.subject))}</a>
+        ${t0 ? ` › ${topicLink(t0.id, L)}` : ""}`}</div>
       <article class="problem-view">
         <div class="row"><h1 style="margin:0">Problem ${p.id}</h1> ${pills(p)}</div>
         <div class="card" style="margin-top:14px">${problemBody(p, { level: L })}</div>
         <div class="row" style="margin-top:16px">
-          ${t0 ? `<a class="btn" href="#/random/topic:${t0.id}/${L}">Another problem from ${esc(t0.name)}</a>` : ""}
+          ${rs ? `<a class="btn primary" href="#/random/${encodeURIComponent(rec.scope)}/${rec.L}">Another problem</a>`
+               : t0 ? `<a class="btn" href="#/random/topic:${t0.id}/${L}">Another problem from ${esc(t0.name)}</a>` : ""}
           ${handoutButton(p).replace("btn-mini", "btn")}
           ${p.ar && p.ar.statement ? `<button class="btn" id="p-lang">${lang === "ar" ? "Show in English" : "اعرض بالعربية"}</button>` : ""}
           <button class="btn" id="copy">Copy LaTeX</button>
@@ -518,43 +524,37 @@ ${items.join("\n\n")}
     if (pl) pl.onclick = () => setLang(lang === "ar" ? "en" : "ar");
   }
 
-  const seen = new Set();
-  function viewRandom(scope, L) {
-    let pool, label, back;
+  // ---------- recommendations ----------
+  // #/random/<scope>/<L> picks a problem and replaces itself with that problem's page,
+  // #/p/<id>/rec/<scope>/<L>, which carries an "Another problem" button for the same scope.
+  function recScope(scope, L) {
     if (scope.startsWith("topic:")) {
       const t = topicById.get(scope.slice(6));
-      if (!t) return viewNotFound();
-      pool = (byTopic.get(t.id) || []).filter((p) => inLevel(p, L));
-      label = `${t.name}, ${levelName(L)}`;
-      back = `#/t/${t.id}/${L}`;
-    } else {
-      pool = problems.filter((p) => inLevel(p, L) && (scope === "any" || p.subject === scope));
-      label = `${scope === "any" ? "Any subject" : subjName(scope)}, ${levelName(L)}`;
-      back = scope === "any" ? "#/" : `#/s/${scope}/${L}`;
-      store.set("subject", scope);
+      if (!t) return null;
+      return { pool: (byTopic.get(t.id) || []).filter((p) => inLevel(p, L)),
+               label: `${t.name}, ${levelName(L)}`, back: `#/t/${t.id}/${L}` };
     }
+    if (scope !== "any" && !A.subjects[scope]) return null;
+    return { pool: problems.filter((p) => inLevel(p, L) && (scope === "any" || p.subject === scope)),
+             label: `${scope === "any" ? "Any subject" : subjName(scope)}, ${levelName(L)}`,
+             back: scope === "any" ? "#/" : `#/s/${scope}/${L}` };
+  }
+
+  const seen = new Set();
+  function viewRandom(scope, L) {
+    const r = recScope(scope, L);
+    if (!r) return viewNotFound();
+    if (!scope.startsWith("topic:")) store.set("subject", scope);
     store.set("level", L);
-    if (!pool.length) { app.innerHTML = `<p class="muted">No problems for ${esc(label)}.</p>`; return; }
-    let fresh = pool.filter((p) => !seen.has(p.id));
-    if (!fresh.length) { pool.forEach((p) => seen.delete(p.id)); fresh = pool; }
+    if (!r.pool.length) { app.innerHTML = `<p class="muted">No problems for ${esc(r.label)}.</p>`; return; }
+    let fresh = r.pool.filter((p) => !seen.has(p.id));
+    if (!fresh.length) { r.pool.forEach((p) => seen.delete(p.id)); fresh = r.pool; }
     const weights = fresh.map((p) => 1 + 3 * (p.stars || 0));
-    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+    let x = Math.random() * weights.reduce((a, b) => a + b, 0);
     let pick = fresh[0];
-    for (let i = 0; i < fresh.length; i++) { r -= weights[i]; if (r <= 0) { pick = fresh[i]; break; } }
+    for (let i = 0; i < fresh.length; i++) { x -= weights[i]; if (x <= 0) { pick = fresh[i]; break; } }
     seen.add(pick.id);
-    app.innerHTML = `
-      <div class="crumbs"><a href="#/">Home</a> › <a href="${back}">${esc(label)}</a> › Recommended</div>
-      <div class="row"><h1 style="margin:0">Try this one</h1> <span class="muted">${esc(label)}</span></div>
-      <div class="card" style="margin-top:14px">
-        <div class="head row" style="margin-bottom:8px"><a class="pid" href="#/p/${pick.id}"><b>${pick.id}</b></a> ${pills(pick)}<span class="spacer"></span>${handoutButton(pick)}</div>
-        ${problemBody(pick, { level: L })}
-      </div>
-      <div class="row" style="margin-top:16px">
-        <button class="btn primary" id="again">Another problem</button>
-        <a class="btn" href="#/p/${pick.id}">Open problem page</a>
-        <a class="btn" href="${back}">Back</a>
-      </div>`;
-    document.getElementById("again").onclick = () => viewRandom(scope, L);
+    location.replace(`#/p/${pick.id}/rec/${encodeURIComponent(scope)}/${L}`);
   }
 
   let searchIndex = null;
@@ -601,7 +601,11 @@ ${items.join("\n\n")}
     else if (view === "l") viewLevel(Number(a));
     else if (view === "s") { viewSubject(a, Number(b)); active = a; }
     else if (view === "t") { viewTopic(a, Number(b)); active = (topicById.get(a) || {}).subject; }
-    else if (view === "p") { viewProblem(a); active = (byId.get(a) || {}).subject; }
+    else if (view === "p") {
+      const rec = b === "rec" && parts[3] ? { scope: parts[3], L: Number(parts[4]) || 2 } : null;
+      viewProblem(a, rec);
+      active = rec ? "random" : (byId.get(a) || {}).subject;
+    }
     else if (view === "random") { viewRandom(a || "any", Number(b) || 2); active = "random"; }
     else if (view === "search") viewSearch(parts.slice(1).join("/"));
     else if (view === "handout") { viewHandout(); active = "handout"; }
