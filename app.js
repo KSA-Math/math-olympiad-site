@@ -302,7 +302,8 @@ ${items.join("\n\n")}
       <section>
         <h2>Levels</h2>
         <div class="grid subjects">
-          ${LEVELS.map((L) => `<div class="card"><h3>${esc(levelName(L))}</h3><div class="muted small">${esc(A.levels[L].description || "")}</div></div>`).join("")}
+          ${LEVELS.map((L) => `<a class="card level-card" href="#/l/${L}"><h3>${esc(levelName(L))}</h3><div class="muted small">${esc(A.levels[L].description || "")}</div>
+            <div class="count">${problems.filter((p) => inLevel(p, L)).length.toLocaleString()} problems · ${A.topics.filter((t) => topicCount(t.id, L) > 0).length} topics</div></a>`).join("")}
         </div>
       </section>`;
     // Topic picker appears once a subject is chosen; lists that subject's topics at the chosen level.
@@ -355,6 +356,40 @@ ${items.join("\n\n")}
             <div class="count">${n} problem${n === 1 ? "" : "s"}${kc ? ` · ${kc} key concept${kc === 1 ? "" : "s"}` : ""}</div>
           </a>`).join("") || `<p class="muted">No topics at this level yet.</p>`}
       </div>`;
+  }
+
+  // All topics at one level, grouped by subject.
+  function viewLevel(L) {
+    if (!LEVELS.includes(L)) return viewNotFound();
+    store.set("level", L);
+    const total = problems.filter((p) => inLevel(p, L)).length;
+    const sections = SUBJECTS.map((s) => {
+      const topics = A.topics.filter((t) => t.subject === s)
+        .map((t) => ({ t, n: topicCount(t.id, L), kc: ((t.levels[L] || {}).key_concepts || []).length }))
+        .filter((x) => x.n || x.kc)
+        .sort((a, b) => a.t.name.localeCompare(b.t.name));
+      const n = problems.filter((p) => p.subject === s && inLevel(p, L)).length;
+      return `
+        <section class="level-subject" style="--c: var(--${s})">
+          <div class="row"><h2><a href="#/s/${s}/${L}">${esc(subjName(s))}</a></h2>
+            <span class="muted">${n.toLocaleString()} problems · ${topics.length} topics</span><span class="spacer"></span>
+            <a class="btn" href="#/random/${s}/${L}">Random ${esc(subjName(s))} problem</a></div>
+          <div class="grid topics">
+            ${topics.map(({ t, n, kc }) => `
+              <a class="card topic-card" href="#/t/${t.id}/${L}">
+                <h3>${esc(t.name)}</h3>
+                <div class="count">${n} problem${n === 1 ? "" : "s"}${kc ? ` · ${kc} key concept${kc === 1 ? "" : "s"}` : ""}</div>
+              </a>`).join("") || `<p class="muted">No topics at this level yet.</p>`}
+          </div>
+        </section>`;
+    }).join("");
+    app.innerHTML = `
+      <div class="crumbs"><a href="#/">Home</a> › ${esc(levelName(L))}</div>
+      <div class="row"><h1>${esc(levelName(L))}</h1><span class="spacer"></span>
+        <a class="btn primary" href="#/random/any/${L}">Random problem at this level</a></div>
+      ${levelTabs((x) => `#/l/${x}`, LEVELS, L)}
+      <p class="lead">${esc(A.levels[L].description || "")} ${total.toLocaleString()} problems.</p>
+      ${sections}`;
   }
 
   function viewTopic(tid, L) {
@@ -544,6 +579,7 @@ ${items.join("\n\n")}
     const [view, a, b] = parts;
     let active = null;
     if (!view) viewHome();
+    else if (view === "l") viewLevel(Number(a));
     else if (view === "s") { viewSubject(a, Number(b)); active = a; }
     else if (view === "t") { viewTopic(a, Number(b)); active = (topicById.get(a) || {}).subject; }
     else if (view === "p") { viewProblem(a); active = (byId.get(a) || {}).subject; }
@@ -558,7 +594,11 @@ ${items.join("\n\n")}
   document.getElementById("search-form").onsubmit = (e) => {
     e.preventDefault();
     const q = document.getElementById("search-input").value.trim();
-    if (q) location.hash = "#/search/" + encodeURIComponent(q);
+    if (!q) return;
+    // A problem id (e.g. N0121, n121) opens the problem directly.
+    const m = q.match(/^([ANCG])\s*-?\s*0*(\d{1,4})$/i);
+    const id = m && m[1].toUpperCase() + m[2].padStart(4, "0");
+    location.hash = id && byId.has(id) ? "#/p/" + id : "#/search/" + encodeURIComponent(q);
   };
   window.addEventListener("hashchange", route);
   route();

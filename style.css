@@ -137,6 +137,12 @@ main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; outline: none
 .topic-card { display: block; color: var(--text); }
 .topic-card:hover { text-decoration: none; border-color: var(--accent); }
 .topic-card .count { color: var(--muted); font-size: .88rem; }
+.level-card { display: block; color: var(--text); }
+.level-card:hover { text-decoration: none; border-color: var(--accent); }
+.level-card .count { color: var(--muted); font-size: .88rem; margin-top: 8px; }
+.level-subject { margin-top: 28px; padding-left: 12px; border-left: 4px solid var(--c, var(--accent)); }
+.level-subject h2 { margin: 0; }
+.level-subject h2 a { color: var(--text); }
 .sections-note { color: var(--muted); font-size: .88rem; margin-bottom: 14px; }
 .intro { font-family: var(--serif); font-size: 1.05rem; margin-bottom: 16px; }
 .concepts { display: grid; gap: 12px; margin: 10px 0 28px; }
