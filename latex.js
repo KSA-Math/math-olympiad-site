@@ -58,16 +58,65 @@
       .replace(/\n[ \t]*\n\s*/g, '<span class="pbreak"></span>');
   }
 
+  // Arabic words inside a formula (e.g. "f(x)=1 \qquad \text{لكل } x>0"): KaTeX lays a formula out
+  // left to right, so the Arabic words would read in the wrong order. Split the formula at its
+  // top-level Arabic \text{...} runs; the caller lays the pieces out right to left.
+  const ARABIC = /[؀-ۿ]/;
+  function splitArabic(tex) {
+    if (!ARABIC.test(tex)) return null;
+    const pieces = [];
+    let depth = 0, lr = 0, start = 0;
+    for (let j = 0; j < tex.length; j++) {
+      const c = tex[j];
+      if (c === "\\") {
+        const m = /^\\([a-zA-Z]+)/.exec(tex.slice(j));
+        if (!m) { j++; continue; }
+        if (m[1] === "left" || m[1] === "begin") lr++;
+        else if (m[1] === "right" || m[1] === "end") lr--;
+        else if (m[1] === "text" && depth === 0 && lr === 0) {
+          let k = j + m[0].length;
+          while (tex[k] === " ") k++;
+          if (tex[k] === "{") {
+            const e = matchBrace(tex, k);
+            const inner = tex.slice(k + 1, e);
+            if (e > 0 && ARABIC.test(inner) && !/[\\${}]/.test(inner)) {
+              pieces.push({ math: tex.slice(start, j) }, { text: inner });
+              start = e + 1; j = e; continue;
+            }
+          }
+        }
+        j += m[0].length - 1;
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+    }
+    if (!pieces.length) return null;
+    pieces.push({ math: tex.slice(start) });
+    return pieces;
+  }
+
   function render(src, katex, errors) {
     const out = [];
     const lists = [];                     // stack of open list types
     let i = 0, text = "";
     const flush = () => { if (text) { out.push(typography(text)); text = ""; } };
+    const opts = (display) => ({ displayMode: display, macros: Object.assign({}, MACROS), throwOnError: true, strict: false });
     const math = (tex, display) => {
       flush();
+      const pieces = splitArabic(tex);
+      if (pieces) {
+        try {
+          const html = pieces.map((p) => p.text != null
+            ? `<span class="ar-t">${esc(p.text.trim())}</span>`
+            : /^(\s|\\[,;:!]|\\q?quad|~|\.|,)*$/.test(p.math) ? (p.math.trim() === "." || p.math.trim() === "," ? esc(p.math.trim()) : "")
+            : `<span class="ar-m">${katex.renderToString((display ? "\\displaystyle " : "") + p.math, opts(false))}</span>`).join(" ");
+          out.push(display ? `<div class="ar-mix display">${html}</div>` : `<span class="ar-mix">${html}</span>`);
+          return;
+        } catch (e) { /* fall back to rendering the whole formula */ }
+      }
       try {
-        out.push(katex.renderToString(tex, { displayMode: display, macros: Object.assign({}, MACROS),
-                                             throwOnError: true, strict: false }));
+        out.push(katex.renderToString(tex, opts(display)));
       } catch (e) {
         if (errors) errors.push({ tex, message: String(e.message || e) });
         out.push(`<code class="tex-error" title="${esc(String(e.message || e))}">${esc(tex)}</code>`);

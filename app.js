@@ -35,6 +35,21 @@
   const starText = (n) => "★".repeat(n);
   const githubEdit = (p) => `${REPO}/edit/main/data/problems/${p.subject}/${p.id}.yaml`;
 
+  // ---------- language of problem texts (English / Arabic) ----------
+  let lang = store.get("lang", "en") === "ar" ? "ar" : "en";
+  const useAr = (p) => lang === "ar" && p.ar && p.ar.statement;
+  const statementSrc = (p) => (useAr(p) ? p.ar.statement : p.statement);
+  const statementHtml = (p) => useAr(p)
+    ? `<div class="statement" lang="ar" dir="rtl">${tex(p.ar.statement)}</div>`
+    : `<div class="statement">${tex(p.statement)}</div>`;
+  function setLang(l) { lang = l; store.set("lang", l); langButton(); route(); }
+  function langButton() {
+    const b = document.getElementById("lang-toggle");
+    b.textContent = lang === "ar" ? "English" : "عربي";
+    b.lang = lang === "ar" ? "en" : "ar";
+    b.title = lang === "ar" ? "Show problems in English" : "اعرض المسائل بالعربية";
+  }
+
   function topicLevels(t) {
     const ls = new Set(Object.keys(t.levels || {}).map(Number));
     for (const p of byTopic.get(t.id) || []) p.levels.forEach((L) => ls.add(L));
@@ -88,7 +103,7 @@
           ${handoutButton(p)}
           <a class="small" href="#/p/${p.id}">Open →</a>
         </div>
-        <div class="statement">${tex(p.statement)}</div>
+        ${statementHtml(p)}
       </article>`;
   }
 
@@ -189,7 +204,7 @@ ${items.join("\n\n")}
             <button class="btn-mini" data-move="${i}" data-dir="1" ${i === handout.length - 1 ? "disabled" : ""}>↓</button>
             <button class="btn-mini" data-remove="${p.id}">Remove</button>
           </div>
-          <div class="statement">${tex(p.statement)}</div>
+          ${statementHtml(p)}
           ${tag ? `<div class="handout-tag">(${esc(tag)})</div>` : ""}
         </li>`;
       }).join("")}</ol>`;
@@ -452,9 +467,10 @@ ${items.join("\n\n")}
       originBits.push(`<a href="${esc(o.official)}" target="_blank" rel="noopener">${what}</a>`);
     }
     if (o.handout) originBits.push(`<span class="muted">Original handout: ${esc(prettyHandout(o.handout))}</span>`);
-    const hints = p.hints || [];
+    const ar = useAr(p);
+    const hints = (p.hints || []).map((h, i) => ar && p.ar.hints && p.ar.hints[i] ? { ...h, text: p.ar.hints[i], ar: true } : h);
     return `
-      <div class="statement">${tex(p.statement)}</div>
+      ${statementHtml(p)}
       <dl class="meta">
         ${p.source ? `<dt>Source</dt><dd>${esc(p.source)}</dd>` : ""}
         <dt>Topics</dt><dd>${p.topics.map((t) => topicLink(t, L)).join(" · ")}</dd>
@@ -466,7 +482,7 @@ ${items.join("\n\n")}
       </dl>
       ${p.needs_check ? `<div class="notice">The statement could not be fully verified against the original (damaged) source files.</div>` : ""}
       ${p.notes ? `<details class="editor-notes"><summary>Notes for editors</summary>${esc(p.notes)}</details>` : ""}
-      ${hints.map((h, i) => `<details class="reveal"><summary>Hint ${i + 1}${h.by ? ` <span class="pill">${esc(h.by)}</span>` : ""}</summary><div>${tex(h.text)}</div></details>`).join("")}
+      ${hints.map((h, i) => `<details class="reveal"${h.ar ? ' lang="ar" dir="rtl"' : ""}><summary>${h.ar ? "تلميح" : "Hint"} ${i + 1}${h.by ? ` <span class="pill">${esc(h.by)}</span>` : ""}</summary><div>${tex(h.text)}</div></details>`).join("")}
       ${p.solution ? `<details class="reveal"><summary>Solution</summary><div>${tex(p.solution)}</div></details>` : ""}`;
   }
 
@@ -486,6 +502,7 @@ ${items.join("\n\n")}
         <div class="row" style="margin-top:16px">
           ${t0 ? `<a class="btn" href="#/random/topic:${t0.id}/${L}">Another problem from ${esc(t0.name)}</a>` : ""}
           ${handoutButton(p).replace("btn-mini", "btn")}
+          ${p.ar && p.ar.statement ? `<button class="btn" id="p-lang">${lang === "ar" ? "Show in English" : "اعرض بالعربية"}</button>` : ""}
           <button class="btn" id="copy">Copy LaTeX</button>
           <a class="btn" href="${githubEdit(p)}" target="_blank" rel="noopener">Edit on GitHub</a>
           <span class="spacer"></span>
@@ -495,8 +512,10 @@ ${items.join("\n\n")}
       </article>`;
     document.getElementById("copy").onclick = (e) => {
       const done = () => { e.target.textContent = "Copied"; setTimeout(() => (e.target.textContent = "Copy LaTeX"), 1500); };
-      if (navigator.clipboard) navigator.clipboard.writeText(p.statement).then(done, () => {});
+      if (navigator.clipboard) navigator.clipboard.writeText(statementSrc(p)).then(done, () => {});
     };
+    const pl = document.getElementById("p-lang");
+    if (pl) pl.onclick = () => setLang(lang === "ar" ? "en" : "ar");
   }
 
   const seen = new Set();
@@ -542,7 +561,7 @@ ${items.join("\n\n")}
   function viewSearch(q) {
     document.getElementById("search-input").value = q;
     if (!searchIndex) {
-      searchIndex = problems.map((p) => [p, [p.id, p.source || "", p.statement.replace(/\\[a-zA-Z]+/g, " "),
+      searchIndex = problems.map((p) => [p, [p.id, p.source || "", p.statement.replace(/\\[a-zA-Z]+/g, " "), p.ar ? p.ar.statement.replace(/\\[a-zA-Z]+/g, " ") : "",
         p.topics.map((t) => (topicById.get(t) || {}).name || "").join(" ")].join(" ").toLowerCase()]);
     }
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -600,6 +619,8 @@ ${items.join("\n\n")}
     const id = m && m[1].toUpperCase() + m[2].padStart(4, "0");
     location.hash = id && byId.has(id) ? "#/p/" + id : "#/search/" + encodeURIComponent(q);
   };
+  document.getElementById("lang-toggle").onclick = () => setLang(lang === "ar" ? "en" : "ar");
+  langButton();
   window.addEventListener("hashchange", route);
   route();
 })();
