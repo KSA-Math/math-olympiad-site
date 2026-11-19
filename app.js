@@ -537,7 +537,7 @@ ${items.join("\n\n")}
       </dl>
       ${p.needs_check ? `<div class="notice">${T("The statement could not be fully verified against the original (damaged) source files.", "تعذّر التحقق الكامل من نص المسألة مقابل الملفات الأصلية (التالفة).")}</div>` : ""}
       ${p.notes ? `<details class="editor-notes"><summary>${T("Notes for editors", "ملاحظات للمحررين")}</summary><div${EN}>${esc(p.notes)}</div></details>` : ""}
-      ${hints.map((h, i) => `<details class="reveal"><summary>${T("Hint", "تلميح")} ${i + 1}${h.by ? ` <span class="pill">${esc(h.by)}</span>` : ""}</summary><div${h.ar ? ' lang="ar" dir="rtl"' : EN}>${tex(h.text)}</div></details>`).join("")}
+      ${hints.map((h, i) => `<details class="reveal"><summary>${T("Hint", "تلميح")} ${i + 1}${h.by ? ` <span class="pill">${h.by === "trainer" ? T("trainer", "المدرب") : esc(h.by)}</span>` : ""}</summary><div${h.ar ? ' lang="ar" dir="rtl"' : EN}>${tex(h.text)}</div></details>`).join("")}
       ${p.solution ? `<details class="reveal"><summary>${T("Solution", "الحل")}</summary><div${EN}>${tex(p.solution)}</div></details>` : ""}`;
   }
 
