@@ -63,6 +63,8 @@
                                  : ls.map((L) => "L" + L).join(" · ");
   // English-only content (key concepts, solutions, file names) keeps its own direction on the Arabic site.
   const EN = ' lang="en" dir="ltr"';
+  const KIND_AR = { theorem: "مبرهنة", lemma: "تمهيدية", corollary: "نتيجة", definition: "تعريف",
+                    technique: "طريقة", remark: "ملاحظة", concept: "مفهوم" };
 
   const useAr = (p) => AR() && p.ar && p.ar.statement;
   const statementSrc = (p) => (useAr(p) ? p.ar.statement : p.statement);
@@ -465,13 +467,19 @@ ${items.join("\n\n")}
         ${all.length ? `<a class="btn" href="#/random/topic:${t.id}/${L}">${T("Random problem from this topic", "مسألة عشوائية من هذا الموضوع")}</a>` : ""}</div>
       ${levelTabs((x) => `#/t/${t.id}/${x}`, avail, L)}
       ${block.sections && block.sections.length ? `<div class="sections-note">${T("From the training book:", "من كتاب التدريب:")} <span${EN}>${block.sections.map(esc).join(" · ")}</span></div>` : ""}
-      ${block.intro ? `<div class="intro"${EN}>${tex(block.intro)}</div>` : ""}
-      ${kcs.length ? `<h2>${T("Key concepts", "مفاهيم أساسية")}</h2>${AR() ? `<p class="muted small">المفاهيم الأساسية متاحة بالإنجليزية حاليًا.</p>` : ""}<div class="concepts"${EN}>${kcs.map((k) => `
-        <div class="card concept">
-          <div class="kind">${esc(k.kind || "concept")}</div>
-          ${k.title ? `<div class="title">${esc(k.title)}</div>` : ""}
-          <div class="body">${tex(k.body)}</div>
-        </div>`).join("")}</div>` : ""}
+      ${block.intro ? (AR() && block.intro_ar
+        ? `<div class="intro" lang="ar" dir="rtl">${tex(block.intro_ar)}</div>`
+        : `<div class="intro"${EN}>${tex(block.intro)}</div>`) : ""}
+      ${kcs.length ? `<h2>${T("Key concepts", "مفاهيم أساسية")}</h2><div class="concepts">${kcs.map((k) => {
+        const ar = AR() && k.body_ar;
+        const title = ar ? k.title_ar || k.title : k.title;
+        return `
+        <div class="card concept"${ar ? ' lang="ar" dir="rtl"' : EN}>
+          <div class="kind">${esc(ar ? KIND_AR[k.kind || "concept"] || k.kind : k.kind || "concept")}</div>
+          ${title ? `<div class="title">${tex(title)}</div>` : ""}
+          <div class="body">${tex(ar ? k.body_ar : k.body)}</div>
+        </div>`;
+      }).join("")}</div>` : ""}
       <div class="row"><h2 style="margin:0">${T("Problems", "المسائل")}</h2><span class="muted">${all.length}</span></div>
       <div class="filters" id="filters">
         <button class="chip" data-f="stars">${T("★ Starred only", "★ المميّزة فقط")}</button>

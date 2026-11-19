@@ -270,7 +270,9 @@ h1 { overflow-wrap: anywhere; }
 }
 
 /* ---------- Arabic texts ---------- */
-.statement[lang="ar"], details.reveal > div[lang="ar"] { font-family: "Tajawal", var(--sans); }
+.statement[lang="ar"], details.reveal > div[lang="ar"], .intro[lang="ar"], .concept[lang="ar"] { font-family: "Tajawal", var(--sans); }
+.intro[lang="ar"], .concept[lang="ar"] .body { line-height: 1.85; }
+.concept[lang="ar"] .kind { letter-spacing: 0; }
 details.reveal > div[lang="ar"] { line-height: 1.8; }
 .statement[lang="ar"] { line-height: 1.85; }
 [dir="rtl"] .katex { direction: ltr; unicode-bidi: isolate; }
