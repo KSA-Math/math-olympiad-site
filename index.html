@@ -13,12 +13,13 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <link rel="stylesheet" href="style.css">
+  <script>try { if (JSON.parse(localStorage.getItem("archive:lang")) === "ar") { document.documentElement.lang = "ar"; document.documentElement.dir = "rtl"; } } catch (e) {}</script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#/">
       <span class="brand-mark"><img class="brand-logo" src="img/logo.png" alt="Saudi Math Team logo"></span>
-      <span>Olympiad Problem Archive</span>
+      <span id="brand-name">Olympiad Problem Archive</span>
     </a>
     <nav class="topnav" id="topnav"></nav>
     <button class="lang-toggle" id="lang-toggle" type="button">عربي</button>
@@ -27,7 +28,7 @@
     </form>
   </header>
   <main id="app" tabindex="-1"><p class="loading">Loading…</p></main>
-  <footer class="footer">
+  <footer class="footer" id="footer">
     Problems from the training material of the Saudi Arabian Mathematical Olympiad program (2016–2026),
     the IMO Shortlist and EGMO. Sources are shown where known.
   </footer>

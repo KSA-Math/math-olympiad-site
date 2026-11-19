@@ -20,8 +20,6 @@
       byTopic.get(t).push(p);
     }
   }
-  const subjName = (s) => A.subjects[s].name;
-  const levelName = (L) => A.levels[L].name;
 
   // ---------- helpers ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -35,19 +33,63 @@
   const starText = (n) => "★".repeat(n);
   const githubEdit = (p) => `${REPO}/edit/main/data/problems/${p.subject}/${p.id}.yaml`;
 
-  // ---------- language of problem texts (English / Arabic) ----------
+  // ---------- language: English, or Arabic (whole site right to left) ----------
   let lang = store.get("lang", "en") === "ar" ? "ar" : "en";
-  const useAr = (p) => lang === "ar" && p.ar && p.ar.statement;
+  const AR = () => lang === "ar";
+  const T = (en, ar) => (lang === "ar" ? ar : en);
+  const num = (n) => n.toLocaleString("en-US");
+  const SEP = () => T(" › ", " ‹ ");
+  // count(n, ["problem", "problems"], ["مسألة واحدة", "مسألتان", "مسائل", "مسألة"])
+  function count(n, en, ar) {
+    if (!AR()) return `${num(n)} ${n === 1 ? en[0] : en[1]}`;
+    if (n === 1) return ar[0];
+    if (n === 2) return ar[1];
+    return `${num(n)} ${n >= 3 && n <= 10 ? ar[2] : ar[3]}`;
+  }
+  const W = {
+    problems: [["problem", "problems"], ["مسألة واحدة", "مسألتان", "مسائل", "مسألة"]],
+    topics: [["topic", "topics"], ["موضوع واحد", "موضوعان", "مواضيع", "موضوعًا"]],
+    concepts: [["key concept", "key concepts"], ["مفهوم أساسي واحد", "مفهومان أساسيان", "مفاهيم أساسية", "مفهومًا أساسيًا"]],
+    results: [["result", "results"], ["نتيجة واحدة", "نتيجتان", "نتائج", "نتيجة"]],
+  };
+  const cnt = (n, w) => count(n, W[w][0], W[w][1]);
+
+  const subjName = (s) => T(A.subjects[s].name, A.subjects[s].name_ar || A.subjects[s].name);
+  const levelName = (L) => T(A.levels[L].name, A.levels[L].name_ar || A.levels[L].name);
+  const levelDesc = (L) => T(A.levels[L].description || "", A.levels[L].description_ar || A.levels[L].description || "");
+  const topicName = (t) => T(t.name, t.name_ar || t.name);
+  const byName = (a, b) => topicName(a).localeCompare(topicName(b), lang);
+  const levelPill = (ls) => AR() ? (ls.length === 1 ? `المستوى ${ls[0]}` : `المستويات ${ls.join("، ")}`)
+                                 : ls.map((L) => "L" + L).join(" · ");
+  // English-only content (key concepts, solutions, file names) keeps its own direction on the Arabic site.
+  const EN = ' lang="en" dir="ltr"';
+
+  const useAr = (p) => AR() && p.ar && p.ar.statement;
   const statementSrc = (p) => (useAr(p) ? p.ar.statement : p.statement);
   const statementHtml = (p) => useAr(p)
     ? `<div class="statement" lang="ar" dir="rtl">${tex(p.ar.statement)}</div>`
-    : `<div class="statement">${tex(p.statement)}</div>`;
-  function setLang(l) { lang = l; store.set("lang", l); langButton(); route(); }
-  function langButton() {
+    : `<div class="statement"${EN}>${tex(p.statement)}</div>`;
+
+  function setLang(l) { lang = l; store.set("lang", l); chrome(); route(); }
+  // The parts of the page outside #app.
+  function chrome() {
+    const h = document.documentElement;
+    h.lang = lang;
+    h.dir = AR() ? "rtl" : "ltr";
+    document.title = T("Olympiad Problem Archive", "أرشيف مسائل الرياضيات");
+    document.getElementById("brand-name").textContent = T("Olympiad Problem Archive", "أرشيف مسائل الرياضيات");
+    document.querySelector(".brand-logo").alt = T("Saudi Math Team logo", "شعار الفريق السعودي للرياضيات");
+    const si = document.getElementById("search-input");
+    si.placeholder = T("Search…", "ابحث…");
+    si.title = T("Search by words, source (e.g. ISL 2015 A1) or ID", "ابحث بالكلمات أو بالمصدر (مثل ISL 2015 A1) أو برقم المسألة");
+    si.setAttribute("aria-label", T("Search", "بحث"));
+    document.getElementById("footer").textContent = T(
+      "Problems from the training material of the Saudi Arabian Mathematical Olympiad program (2016–2026), the IMO Shortlist and EGMO. Sources are shown where known.",
+      "مسائل من المواد التدريبية لبرنامج الأولمبياد السعودي للرياضيات (2016–2026)، ومن القائمة القصيرة للأولمبياد الدولي (ISL) وأولمبياد البنات الأوروبي (EGMO). يُذكر مصدر المسألة حين يكون معروفًا.");
     const b = document.getElementById("lang-toggle");
-    b.textContent = lang === "ar" ? "English" : "عربي";
-    b.lang = lang === "ar" ? "en" : "ar";
-    b.title = lang === "ar" ? "Show problems in English" : "اعرض المسائل بالعربية";
+    b.textContent = T("عربي", "English");
+    b.lang = T("ar", "en");
+    b.title = T("اعرض الموقع بالعربية", "Show the site in English");
   }
 
   function topicLevels(t) {
@@ -63,7 +105,7 @@
     if (!t) return esc(tid);
     const ls = topicLevels(t);
     const L = ls.includes(preferL) ? preferL : ls[0];
-    return `<a href="#/t/${t.id}/${L}">${esc(t.name)}</a>`;
+    return `<a href="#/t/${t.id}/${L}">${esc(topicName(t))}</a>`;
   }
   function prettyHandout(s) {
     return String(s).replace(/^year\s+/, "").replace(/\.(txt|tex|pdf)\b/g, "");
@@ -72,23 +114,23 @@
   function aopsLabel(p) {
     const url = p.aops;
     const m = /\b(ISL|EGMO) (\d{4})\b/.exec(p.source || "");
-    const contest = m ? (m[1] === "ISL" ? "IMO Shortlist" : "EGMO") : "";
-    if (/\/c\d+h\d+/.test(url)) return "Discussion thread on AoPS";
-    if (/c3223_imo_shortlist|European_Girls/.test(url)) return `AoPS: ${contest || "contest"} page (all years)`;
-    if (/\/wiki\//.test(url)) return `AoPS Wiki: ${m ? `${m[2]} ${contest}` : "contest"} problems`;
-    return m ? `${contest} ${m[2]} on AoPS (problems and discussion threads)` : "AoPS";
+    const contest = m ? (m[1] === "ISL" ? T("IMO Shortlist", "القائمة القصيرة للأولمبياد الدولي") : "EGMO") : "";
+    if (/\/c\d+h\d+/.test(url)) return T("Discussion thread on AoPS", "نقاش المسألة على موقع AoPS");
+    if (/c3223_imo_shortlist|European_Girls/.test(url)) return T(`AoPS: ${contest || "contest"} page (all years)`, `AoPS: صفحة ${contest || "المسابقة"} (كل السنوات)`);
+    if (/\/wiki\//.test(url)) return T(`AoPS Wiki: ${m ? `${m[2]} ${contest}` : "contest"} problems`, `ويكي AoPS: مسائل ${m ? `${contest} ${m[2]}` : "المسابقة"}`);
+    return m ? T(`${contest} ${m[2]} on AoPS (problems and discussion threads)`, `${contest} ${m[2]} على موقع AoPS (المسائل ونقاشاتها)`) : "AoPS";
   }
 
   function pills(p, inTopic) {
     const out = [];
     if (!inTopic) {   // on a topic page the subject is known; show only extra levels
       out.push(`<span class="pill subject-${p.subject}">${esc(subjName(p.subject))}</span>`);
-      out.push(`<span class="pill">${p.levels.map((L) => "L" + L).join(" · ")}</span>`);
+      out.push(`<span class="pill">${levelPill(p.levels)}</span>`);
     } else if (p.levels.length > 1) {
-      out.push(`<span class="pill" title="Also used at these levels">${p.levels.map((L) => "L" + L).join(" · ")}</span>`);
+      out.push(`<span class="pill" title="${T("Also used at these levels", "تُستخدم أيضًا في هذه المستويات")}">${levelPill(p.levels)}</span>`);
     }
-    if (p.stars) out.push(`<span class="pill stars" title="${esc(A.stars[p.stars] || "")}">${starText(p.stars)}</span>`);
-    if (p.hard) out.push(`<span class="pill hard" title="Marked hard for its level in the source handouts">hard</span>`);
+    if (p.stars) out.push(`<span class="pill stars" title="${esc(T(A.stars[p.stars] || "", "مسألة مميّزة"))}">${starText(p.stars)}</span>`);
+    if (p.hard) out.push(`<span class="pill hard" title="${T("Marked hard for its level in the source handouts", "مصنّفة صعبة لمستواها في الملزمات الأصلية")}">${T("hard", "صعبة")}</span>`);
     return out.join(" ");
   }
 
@@ -98,10 +140,10 @@
         <div class="head">
           <a class="pid" href="#/p/${p.id}">${p.id}</a>
           ${pills(p, L != null)}
-          ${p.source ? `<span class="source">${esc(p.source)}</span>` : ""}
+          ${p.source ? `<span class="source" dir="ltr">${esc(p.source)}</span>` : ""}
           <span class="spacer"></span>
           ${handoutButton(p)}
-          <a class="small" href="#/p/${p.id}">Open →</a>
+          <a class="small" href="#/p/${p.id}">${T("Open →", "افتح ←")}</a>
         </div>
         ${statementHtml(p)}
       </article>`;
@@ -113,7 +155,7 @@
   function saveHandout() { store.set("handout", handout); nav(currentNav); }
   function handoutButton(p) {
     const on = inHandout(p.id);
-    return `<button class="btn-mini add-h ${on ? "on" : ""}" data-id="${p.id}" title="Add to / remove from your handout">${on ? "✓ In handout" : "+ Handout"}</button>`;
+    return `<button class="btn-mini add-h ${on ? "on" : ""}" data-id="${p.id}" title="${T("Add to / remove from your handout", "أضف إلى الملزمة أو احذف منها")}">${on ? T("✓ In handout", "✓ في الملزمة") : T("+ Handout", "+ الملزمة")}</button>`;
   }
   app.addEventListener("click", (e) => {
     const b = e.target.closest(".add-h");
@@ -122,7 +164,8 @@
     handout = inHandout(id) ? handout.filter((x) => x !== id) : handout.concat(id);
     saveHandout();
     document.querySelectorAll(`.add-h[data-id="${id}"]`).forEach((el) => {
-      el.outerHTML = handoutButton(byId.get(id));
+      const big = el.classList.contains("btn");
+      el.outerHTML = big ? handoutButton(byId.get(id)).replace("btn-mini", "btn") : handoutButton(byId.get(id));
     });
   });
 
@@ -164,27 +207,29 @@ ${items.join("\n\n")}
   }
 
   function viewHandout() {
-    const opts = store.get("handoutOpts", { title: "Problem set", sources: true, ids: false });
+    const opts = store.get("handoutOpts", { title: T("Problem set", "مجموعة مسائل"), sources: true, ids: false });
     const list = handout.map((id) => byId.get(id));
     app.innerHTML = `
-      <div class="crumbs no-print"><a href="#/">Home</a> › Handout</div>
+      <div class="crumbs no-print"><a href="#/">${T("Home", "الرئيسية")}</a>${SEP()}${T("Handout", "الملزمة")}</div>
       <div class="no-print">
-        <h1>Handout</h1>
-        <p class="lead">Collect problems with the <b>+ Handout</b> button on any problem, then print it or export LaTeX.
-          The list is saved in this browser only.</p>
+        <h1>${T("Handout", "الملزمة")}</h1>
+        <p class="lead">${T(`Collect problems with the <b>+ Handout</b> button on any problem, then print it or export LaTeX.
+          The list is saved in this browser only.`, `اجمع المسائل بزر <b>+ الملزمة</b> الموجود في كل مسألة، ثم اطبعها أو صدّرها بصيغة LaTeX.
+          تُحفظ القائمة في هذا المتصفح فقط.`)}</p>
         ${list.length ? `
         <div class="card handout-controls">
-          <label class="field">Title <input id="h-title" value="${esc(opts.title)}"></label>
-          <label><input type="checkbox" id="h-sources" ${opts.sources ? "checked" : ""}> Show sources</label>
-          <label><input type="checkbox" id="h-ids" ${opts.ids ? "checked" : ""}> Show problem IDs</label>
+          <label class="field">${T("Title", "العنوان")} <input id="h-title" value="${esc(opts.title)}"></label>
+          <label><input type="checkbox" id="h-sources" ${opts.sources ? "checked" : ""}> ${T("Show sources", "أظهر المصادر")}</label>
+          <label><input type="checkbox" id="h-ids" ${opts.ids ? "checked" : ""}> ${T("Show problem IDs", "أظهر أرقام المسائل")}</label>
           <div class="row" style="margin-top:10px">
-            <button class="btn primary" id="h-print">Print / save as PDF</button>
-            <button class="btn" id="h-tex">Download .tex</button>
-            <button class="btn" id="h-copy">Copy LaTeX</button>
+            <button class="btn primary" id="h-print">${T("Print / save as PDF", "اطبع / احفظ PDF")}</button>
+            <button class="btn" id="h-tex" title="${T("", "ملف LaTeX بنصوص المسائل الإنجليزية")}">${T("Download .tex", "نزّل ملف ‎.tex")}</button>
+            <button class="btn" id="h-copy">${T("Copy LaTeX", "انسخ LaTeX")}</button>
             <span class="spacer"></span>
-            <button class="btn" id="h-clear">Clear handout</button>
+            <button class="btn" id="h-clear">${T("Clear handout", "أفرغ الملزمة")}</button>
           </div>
-        </div>` : `<p class="muted">Your handout is empty.</p>`}
+          ${AR() ? `<p class="muted small" style="margin:8px 0 0">ملف LaTeX يحتوي على نصوص المسائل بالإنجليزية.</p>` : ""}
+        </div>` : `<p class="muted">${T("Your handout is empty.", "ملزمتك فارغة.")}</p>`}
       </div>
       <div id="h-doc"></div>`;
     if (!list.length) return;
@@ -202,10 +247,10 @@ ${items.join("\n\n")}
             <span class="spacer"></span>
             <button class="btn-mini" data-move="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
             <button class="btn-mini" data-move="${i}" data-dir="1" ${i === handout.length - 1 ? "disabled" : ""}>↓</button>
-            <button class="btn-mini" data-remove="${p.id}">Remove</button>
+            <button class="btn-mini" data-remove="${p.id}">${T("Remove", "احذف")}</button>
           </div>
           ${statementHtml(p)}
-          ${tag ? `<div class="handout-tag">(${esc(tag)})</div>` : ""}
+          ${tag ? `<div class="handout-tag"><span dir="ltr">(${esc(tag)})</span></div>` : ""}
         </li>`;
       }).join("")}</ol>`;
       return o;
@@ -229,18 +274,19 @@ ${items.join("\n\n")}
       const blob = new Blob([handoutLatex(o.title, o.sources, o.ids)], { type: "application/x-tex" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = (o.title.trim() || "handout").replace(/[^\w-]+/g, "_") + ".tex";
+      a.download = (o.title.trim().replace(/[^\w-]+/g, "_").replace(/^_+|_+$/g, "") || "handout") + ".tex";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     };
     document.getElementById("h-copy").onclick = (e) => {
       const o = draw();
+      const label = e.target.textContent;
       if (navigator.clipboard) navigator.clipboard.writeText(handoutLatex(o.title, o.sources, o.ids)).then(() => {
-        e.target.textContent = "Copied"; setTimeout(() => (e.target.textContent = "Copy LaTeX"), 1500);
+        e.target.textContent = T("Copied", "نُسخ"); setTimeout(() => (e.target.textContent = label), 1500);
       }, () => {});
     };
     document.getElementById("h-clear").onclick = () => {
-      if (confirm("Remove all problems from the handout?")) { handout = []; saveHandout(); viewHandout(); }
+      if (confirm(T("Remove all problems from the handout?", "حذف كل المسائل من الملزمة؟"))) { handout = []; saveHandout(); viewHandout(); }
     };
   }
 
@@ -254,7 +300,7 @@ ${items.join("\n\n")}
   function pagedList(container, list, L, emptyText) {
     let shown = 0;
     container.innerHTML = list.length ? `<div class="problem-list"></div><div class="more"></div>`
-                                      : `<p class="muted">${esc(emptyText || "No problems.")}</p>`;
+                                      : `<p class="muted">${esc(emptyText || T("No problems.", "لا توجد مسائل."))}</p>`;
     if (!list.length) return;
     const ul = container.querySelector(".problem-list");
     const more = container.querySelector(".more");
@@ -264,7 +310,7 @@ ${items.join("\n\n")}
       shown += chunk.length;
       clampStatements(ul);
       more.innerHTML = shown < list.length
-        ? `<button class="btn">Show more (${list.length - shown} left)</button>` : "";
+        ? `<button class="btn">${T(`Show more (${num(list.length - shown)} left)`, `أظهر المزيد (بقي ${num(list.length - shown)})`)}</button>` : "";
       const b = more.querySelector("button");
       if (b) b.onclick = step;
     };
@@ -278,47 +324,49 @@ ${items.join("\n\n")}
     const lastL = store.get("level", 2), lastS = store.get("subject", "any");
     app.innerHTML = `
       <section class="hero">
-        <h1>Olympiad Problem Archive</h1>
-        <p class="lead">Problems from ten years of the Saudi national training program, organised by subject, topic and level, plus the IMO Shortlist and EGMO.</p>
+        <h1>${T("Olympiad Problem Archive", "أرشيف مسائل الرياضيات")}</h1>
+        <p class="lead">${T("Problems from ten years of the Saudi national training program, organised by subject, topic and level, plus the IMO Shortlist and EGMO.",
+          "مسائل من عشر سنوات من برنامج التدريب الوطني السعودي، مرتّبة حسب المجال والموضوع والمستوى، إضافةً إلى القائمة القصيرة للأولمبياد الدولي وأولمبياد البنات الأوروبي.")}</p>
         <div class="stats">
-          <span><b>${problems.length.toLocaleString()}</b> problems</span>
-          <span><b>${A.topics.length}</b> topics</span>
-          <span><b>4</b> levels</span>
-          <span><b>${withSource.toLocaleString()}</b> with a known competition source</span>
+          <span><b>${num(problems.length)}</b> ${T("problems", "مسألة")}</span>
+          <span><b>${A.topics.length}</b> ${T("topics", "موضوعًا")}</span>
+          <span><b>4</b> ${T("levels", "مستويات")}</span>
+          <span><b>${num(withSource)}</b> ${T("with a known competition source", "مسألة من مسابقة معروفة")}</span>
         </div>
       </section>
       <section class="grid subjects">
         ${SUBJECTS.map((s) => `
           <a class="card subject-card" href="#/s/${s}/${lastL}" style="--c: var(--${s})">
             <h2>${esc(subjName(s))}</h2>
-            <div class="muted">${counts[s].toLocaleString()} problems · ${A.topics.filter((t) => t.subject === s).length} topics</div>
-            <div class="levels">${LEVELS.map((L) => `<span class="pill">L${L}: ${problems.filter((p) => p.subject === s && inLevel(p, L)).length}</span>`).join("")}</div>
+            <div class="muted">${cnt(counts[s], "problems")} · ${cnt(A.topics.filter((t) => t.subject === s).length, "topics")}</div>
+            <div class="levels">${LEVELS.map((L) => `<span class="pill">${T("L" + L, "م" + L)}: ${problems.filter((p) => p.subject === s && inLevel(p, L)).length}</span>`).join("")}</div>
           </a>`).join("")}
       </section>
       <section class="card recommend">
-        <h2>Recommend me a problem</h2>
-        <p class="muted small" style="margin:0">Picks a random problem for your level. Starred problems come up more often.</p>
+        <h2>${T("Recommend me a problem", "اقترح عليّ مسألة")}</h2>
+        <p class="muted small" style="margin:0">${T("Picks a random problem for your level. Starred problems come up more often.",
+          "يختار مسألة عشوائية من مستواك، وتظهر المسائل المميّزة بنجمة أكثر من غيرها.")}</p>
         <form class="row" id="rec-form">
-          <label>Subject
+          <label>${T("Subject", "المجال")}
             <select name="s">
-              <option value="any">Any subject</option>
+              <option value="any">${T("Any subject", "أي مجال")}</option>
               ${SUBJECTS.map((s) => `<option value="${s}" ${s === lastS ? "selected" : ""}>${esc(subjName(s))}</option>`).join("")}
             </select>
           </label>
-          <label>Level
+          <label>${T("Level", "المستوى")}
             <select name="L">${LEVELS.map((L) => `<option value="${L}" ${L === lastL ? "selected" : ""}>${esc(levelName(L))}</option>`).join("")}</select>
           </label>
-          <label id="rec-topic-wrap" hidden>Topic
+          <label id="rec-topic-wrap" hidden>${T("Topic", "الموضوع")}
             <select name="t"></select>
           </label>
-          <button class="btn primary" type="submit">Give me a problem</button>
+          <button class="btn primary" type="submit">${T("Give me a problem", "أعطني مسألة")}</button>
         </form>
       </section>
       <section>
-        <h2>Levels</h2>
+        <h2>${T("Levels", "المستويات")}</h2>
         <div class="grid subjects">
-          ${LEVELS.map((L) => `<a class="card level-card" href="#/l/${L}"><h3>${esc(levelName(L))}</h3><div class="muted small">${esc(A.levels[L].description || "")}</div>
-            <div class="count">${problems.filter((p) => inLevel(p, L)).length.toLocaleString()} problems · ${A.topics.filter((t) => topicCount(t.id, L) > 0).length} topics</div></a>`).join("")}
+          ${LEVELS.map((L) => `<a class="card level-card" href="#/l/${L}"><h3>${esc(levelName(L))}</h3><div class="muted small">${esc(levelDesc(L))}</div>
+            <div class="count">${cnt(problems.filter((p) => inLevel(p, L)).length, "problems")} · ${cnt(A.topics.filter((t) => topicCount(t.id, L) > 0).length, "topics")}</div></a>`).join("")}
         </div>
       </section>`;
     // Topic picker appears once a subject is chosen; lists that subject's topics at the chosen level.
@@ -328,10 +376,9 @@ ${items.join("\n\n")}
     const fillTopics = () => {
       const s = selS.value, L = Number(selL.value), keep = selT.value || store.get("topic", "");
       if (s === "any") { wrap.hidden = true; selT.innerHTML = ""; return; }
-      const ts = A.topics.filter((t) => t.subject === s && topicCount(t.id, L) > 0)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      selT.innerHTML = `<option value="">Any topic</option>` + ts.map((t) =>
-        `<option value="${t.id}" ${t.id === keep ? "selected" : ""}>${esc(t.name)} (${topicCount(t.id, L)})</option>`).join("");
+      const ts = A.topics.filter((t) => t.subject === s && topicCount(t.id, L) > 0).sort(byName);
+      selT.innerHTML = `<option value="">${T("Any topic", "أي موضوع")}</option>` + ts.map((t) =>
+        `<option value="${t.id}" ${t.id === keep ? "selected" : ""}>${esc(topicName(t))} (${topicCount(t.id, L)})</option>`).join("");
       wrap.hidden = false;
     };
     selS.onchange = fillTopics;
@@ -349,28 +396,33 @@ ${items.join("\n\n")}
     return `<nav class="tabs">${LEVELS.map((L) => `<a href="${hrefFor(L)}" class="${L === current ? "active" : ""} ${available.includes(L) ? "" : "empty"}">${esc(levelName(L))}</a>`).join("")}</nav>`;
   }
 
+  function topicCards(topics, L) {
+    return topics.map(({ t, n, kc }) => `
+      <a class="card topic-card" href="#/t/${t.id}/${L}">
+        <h3>${esc(topicName(t))}</h3>
+        <div class="count">${cnt(n, "problems")}${kc ? ` · ${cnt(kc, "concepts")}` : ""}</div>
+      </a>`).join("") || `<p class="muted">${T("No topics at this level yet.", "لا توجد مواضيع في هذا المستوى بعد.")}</p>`;
+  }
+  function subjectTopics(s, L) {
+    return A.topics.filter((t) => t.subject === s)
+      .map((t) => ({ t, n: topicCount(t.id, L), kc: ((t.levels[L] || {}).key_concepts || []).length }))
+      .filter((x) => x.n || x.kc)
+      .sort((a, b) => byName(a.t, b.t));
+  }
+
   function viewSubject(s, L) {
     if (!A.subjects[s]) return viewNotFound();
     L = LEVELS.includes(L) ? L : store.get("level", 2);
     store.set("level", L);
-    const topics = A.topics.filter((t) => t.subject === s)
-      .map((t) => ({ t, n: topicCount(t.id, L), kc: ((t.levels[L] || {}).key_concepts || []).length }))
-      .filter((x) => x.n || x.kc)
-      .sort((a, b) => a.t.name.localeCompare(b.t.name));
+    const topics = subjectTopics(s, L);
     const total = problems.filter((p) => p.subject === s && inLevel(p, L)).length;
     app.innerHTML = `
-      <div class="crumbs"><a href="#/">Home</a> › ${esc(subjName(s))}</div>
+      <div class="crumbs"><a href="#/">${T("Home", "الرئيسية")}</a>${SEP()}${esc(subjName(s))}</div>
       <div class="row"><h1>${esc(subjName(s))}</h1><span class="spacer"></span>
-        <a class="btn" href="#/random/${s}/${L}">Random ${esc(subjName(s))} problem at ${esc(levelName(L))}</a></div>
+        <a class="btn" href="#/random/${s}/${L}">${T(`Random ${esc(subjName(s))} problem at ${esc(levelName(L))}`, `مسألة عشوائية في ${esc(subjName(s))}، ${esc(levelName(L))}`)}</a></div>
       ${levelTabs((x) => `#/s/${s}/${x}`, LEVELS, L)}
-      <p class="lead">${esc(A.levels[L].description || "")} ${total.toLocaleString()} problems in ${topics.length} topics.</p>
-      <div class="grid topics">
-        ${topics.map(({ t, n, kc }) => `
-          <a class="card topic-card" href="#/t/${t.id}/${L}">
-            <h3>${esc(t.name)}</h3>
-            <div class="count">${n} problem${n === 1 ? "" : "s"}${kc ? ` · ${kc} key concept${kc === 1 ? "" : "s"}` : ""}</div>
-          </a>`).join("") || `<p class="muted">No topics at this level yet.</p>`}
-      </div>`;
+      <p class="lead">${esc(levelDesc(L))} ${T(`${cnt(total, "problems")} in ${cnt(topics.length, "topics")}.`, `${cnt(total, "problems")} في ${cnt(topics.length, "topics")}.`)}</p>
+      <div class="grid topics">${topicCards(topics, L)}</div>`;
   }
 
   // All topics at one level, grouped by subject.
@@ -379,31 +431,22 @@ ${items.join("\n\n")}
     store.set("level", L);
     const total = problems.filter((p) => inLevel(p, L)).length;
     const sections = SUBJECTS.map((s) => {
-      const topics = A.topics.filter((t) => t.subject === s)
-        .map((t) => ({ t, n: topicCount(t.id, L), kc: ((t.levels[L] || {}).key_concepts || []).length }))
-        .filter((x) => x.n || x.kc)
-        .sort((a, b) => a.t.name.localeCompare(b.t.name));
+      const topics = subjectTopics(s, L);
       const n = problems.filter((p) => p.subject === s && inLevel(p, L)).length;
       return `
         <section class="level-subject" style="--c: var(--${s})">
           <div class="row"><h2><a href="#/s/${s}/${L}">${esc(subjName(s))}</a></h2>
-            <span class="muted">${n.toLocaleString()} problems · ${topics.length} topics</span><span class="spacer"></span>
-            <a class="btn" href="#/random/${s}/${L}">Random ${esc(subjName(s))} problem</a></div>
-          <div class="grid topics">
-            ${topics.map(({ t, n, kc }) => `
-              <a class="card topic-card" href="#/t/${t.id}/${L}">
-                <h3>${esc(t.name)}</h3>
-                <div class="count">${n} problem${n === 1 ? "" : "s"}${kc ? ` · ${kc} key concept${kc === 1 ? "" : "s"}` : ""}</div>
-              </a>`).join("") || `<p class="muted">No topics at this level yet.</p>`}
-          </div>
+            <span class="muted">${cnt(n, "problems")} · ${cnt(topics.length, "topics")}</span><span class="spacer"></span>
+            <a class="btn" href="#/random/${s}/${L}">${T(`Random ${esc(subjName(s))} problem`, `مسألة عشوائية في ${esc(subjName(s))}`)}</a></div>
+          <div class="grid topics">${topicCards(topics, L)}</div>
         </section>`;
     }).join("");
     app.innerHTML = `
-      <div class="crumbs"><a href="#/">Home</a> › ${esc(levelName(L))}</div>
+      <div class="crumbs"><a href="#/">${T("Home", "الرئيسية")}</a>${SEP()}${esc(levelName(L))}</div>
       <div class="row"><h1>${esc(levelName(L))}</h1><span class="spacer"></span>
-        <a class="btn primary" href="#/random/any/${L}">Random problem at this level</a></div>
+        <a class="btn primary" href="#/random/any/${L}">${T("Random problem at this level", "مسألة عشوائية من هذا المستوى")}</a></div>
       ${levelTabs((x) => `#/l/${x}`, LEVELS, L)}
-      <p class="lead">${esc(A.levels[L].description || "")} ${total.toLocaleString()} problems.</p>
+      <p class="lead">${esc(levelDesc(L))} ${cnt(total, "problems")}.</p>
       ${sections}`;
   }
 
@@ -417,30 +460,30 @@ ${items.join("\n\n")}
     const all = sortProblems((byTopic.get(t.id) || []).filter((p) => inLevel(p, L)));
     const kcs = block.key_concepts || [];
     app.innerHTML = `
-      <div class="crumbs"><a href="#/">Home</a> › <a href="#/s/${t.subject}/${L}">${esc(subjName(t.subject))}</a> › ${esc(levelName(L))}</div>
-      <div class="row"><h1>${esc(t.name)}</h1><span class="spacer"></span>
-        ${all.length ? `<a class="btn" href="#/random/topic:${t.id}/${L}">Random problem from this topic</a>` : ""}</div>
+      <div class="crumbs"><a href="#/">${T("Home", "الرئيسية")}</a>${SEP()}<a href="#/s/${t.subject}/${L}">${esc(subjName(t.subject))}</a>${SEP()}${esc(levelName(L))}</div>
+      <div class="row"><h1>${esc(topicName(t))}</h1><span class="spacer"></span>
+        ${all.length ? `<a class="btn" href="#/random/topic:${t.id}/${L}">${T("Random problem from this topic", "مسألة عشوائية من هذا الموضوع")}</a>` : ""}</div>
       ${levelTabs((x) => `#/t/${t.id}/${x}`, avail, L)}
-      ${block.sections && block.sections.length ? `<div class="sections-note">From the training book: ${block.sections.map(esc).join(" · ")}</div>` : ""}
-      ${block.intro ? `<div class="intro">${tex(block.intro)}</div>` : ""}
-      ${kcs.length ? `<h2>Key concepts</h2><div class="concepts">${kcs.map((k) => `
+      ${block.sections && block.sections.length ? `<div class="sections-note">${T("From the training book:", "من كتاب التدريب:")} <span${EN}>${block.sections.map(esc).join(" · ")}</span></div>` : ""}
+      ${block.intro ? `<div class="intro"${EN}>${tex(block.intro)}</div>` : ""}
+      ${kcs.length ? `<h2>${T("Key concepts", "مفاهيم أساسية")}</h2>${AR() ? `<p class="muted small">المفاهيم الأساسية متاحة بالإنجليزية حاليًا.</p>` : ""}<div class="concepts"${EN}>${kcs.map((k) => `
         <div class="card concept">
           <div class="kind">${esc(k.kind || "concept")}</div>
           ${k.title ? `<div class="title">${esc(k.title)}</div>` : ""}
           <div class="body">${tex(k.body)}</div>
         </div>`).join("")}</div>` : ""}
-      <div class="row"><h2 style="margin:0">Problems</h2><span class="muted">${all.length}</span></div>
+      <div class="row"><h2 style="margin:0">${T("Problems", "المسائل")}</h2><span class="muted">${all.length}</span></div>
       <div class="filters" id="filters">
-        <button class="chip" data-f="stars">★ Starred only</button>
-        <button class="chip" data-f="hard">Hard only</button>
-        <button class="chip" data-f="source">With competition source</button>
+        <button class="chip" data-f="stars">${T("★ Starred only", "★ المميّزة فقط")}</button>
+        <button class="chip" data-f="hard">${T("Hard only", "الصعبة فقط")}</button>
+        <button class="chip" data-f="source">${T("With competition source", "من مسابقات معروفة")}</button>
       </div>
       <div id="plist"></div>`;
     const active = new Set();
     const apply = () => {
       const list = all.filter((p) => (!active.has("stars") || p.stars > 0) && (!active.has("hard") || p.hard)
                                      && (!active.has("source") || p.source));
-      pagedList(document.getElementById("plist"), list, L, "No problems match these filters.");
+      pagedList(document.getElementById("plist"), list, L, T("No problems match these filters.", "لا توجد مسائل تطابق هذه الخيارات."));
     };
     document.querySelectorAll("#filters .chip").forEach((b) => {
       b.onclick = () => {
@@ -457,33 +500,37 @@ ${items.join("\n\n")}
     const o = p.origin || {};
     const originBits = [];
     if (o.book) {
-      const label = `Training book, ${esc(o.book)}${o.book_page ? `, page ${o.book_page}` : ""}`;
+      const book = AR() ? esc(o.book).replace(/^Problem\b/, "مسألة") : esc(o.book);
+      const label = T(`Training book, ${book}${o.book_page ? `, page ${o.book_page}` : ""}`,
+                      `كتاب التدريب، ${book}${o.book_page ? `، صفحة ${o.book_page}` : ""}`);
       originBits.push((o.book_page
         ? `<a href="material/training-book.pdf#page=${o.book_page}" target="_blank" rel="noopener">${label}</a>`
-        : label) + (o.section ? ` <span class="muted">· ${esc(o.section)}</span>` : ""));
+        : label) + (o.section ? ` <span class="muted">· <span${EN}>${esc(o.section)}</span></span>` : ""));
     }
     if (o.official) {
-      const what = /^EGMO/.test(p.source || "") ? "Official EGMO problems and solutions" : "Official IMO Shortlist booklet (with solutions)";
+      const what = /^EGMO/.test(p.source || "")
+        ? T("Official EGMO problems and solutions", "مسائل EGMO الرسمية مع حلولها")
+        : T("Official IMO Shortlist booklet (with solutions)", "كتيّب القائمة القصيرة الرسمي للأولمبياد الدولي (مع الحلول)");
       originBits.push(`<a href="${esc(o.official)}" target="_blank" rel="noopener">${what}</a>`);
     }
-    if (o.handout) originBits.push(`<span class="muted">Original handout: ${esc(prettyHandout(o.handout))}</span>`);
+    if (o.handout) originBits.push(`<span class="muted">${T("Original handout:", "الملزمة الأصلية:")} <span${EN}>${esc(prettyHandout(o.handout))}</span></span>`);
     const ar = useAr(p);
     const hints = (p.hints || []).map((h, i) => ar && p.ar.hints && p.ar.hints[i] ? { ...h, text: p.ar.hints[i], ar: true } : h);
     return `
       ${statementHtml(p)}
       <dl class="meta">
-        ${p.source ? `<dt>Source</dt><dd>${esc(p.source)}</dd>` : ""}
-        <dt>Topics</dt><dd>${p.topics.map((t) => topicLink(t, L)).join(" · ")}</dd>
-        <dt>Levels</dt><dd>${p.levels.map((x) => esc(levelName(x))).join(", ")}</dd>
-        ${(p.related || []).length ? `<dt>Related</dt><dd>${p.related.filter((r) => byId.has(r)).map((r) =>
-          `<a href="#/p/${r}" title="A variant of this problem">${r}</a>${byId.get(r).source ? ` <span class="muted small">(${esc(byId.get(r).source)})</span>` : ""}`).join(" · ")}</dd>` : ""}
-        ${originBits.length ? `<dt>Material</dt><dd class="small">${originBits.join("<br>")}</dd>` : ""}
-        ${p.aops ? `<dt>Link</dt><dd><a href="${esc(p.aops)}" target="_blank" rel="noopener">${esc(aopsLabel(p))}</a></dd>` : ""}
+        ${p.source ? `<dt>${T("Source", "المصدر")}</dt><dd dir="ltr" class="ltr-cell">${esc(p.source)}</dd>` : ""}
+        <dt>${T("Topics", "المواضيع")}</dt><dd>${p.topics.map((t) => topicLink(t, L)).join(" · ")}</dd>
+        <dt>${T("Levels", "المستويات")}</dt><dd>${p.levels.map((x) => esc(levelName(x))).join(T(", ", "، "))}</dd>
+        ${(p.related || []).length ? `<dt>${T("Related", "مسائل مرتبطة")}</dt><dd>${p.related.filter((r) => byId.has(r)).map((r) =>
+          `<a href="#/p/${r}" title="${T("A variant of this problem", "صيغة أخرى من هذه المسألة")}">${r}</a>${byId.get(r).source ? ` <span class="muted small" dir="ltr">(${esc(byId.get(r).source)})</span>` : ""}`).join(" · ")}</dd>` : ""}
+        ${originBits.length ? `<dt>${T("Material", "المادة التدريبية")}</dt><dd class="small">${originBits.join("<br>")}</dd>` : ""}
+        ${p.aops ? `<dt>${T("Link", "رابط")}</dt><dd><a href="${esc(p.aops)}" target="_blank" rel="noopener">${esc(aopsLabel(p))}</a></dd>` : ""}
       </dl>
-      ${p.needs_check ? `<div class="notice">The statement could not be fully verified against the original (damaged) source files.</div>` : ""}
-      ${p.notes ? `<details class="editor-notes"><summary>Notes for editors</summary>${esc(p.notes)}</details>` : ""}
-      ${hints.map((h, i) => `<details class="reveal"${h.ar ? ' lang="ar" dir="rtl"' : ""}><summary>${h.ar ? "تلميح" : "Hint"} ${i + 1}${h.by ? ` <span class="pill">${esc(h.by)}</span>` : ""}</summary><div>${tex(h.text)}</div></details>`).join("")}
-      ${p.solution ? `<details class="reveal"><summary>Solution</summary><div>${tex(p.solution)}</div></details>` : ""}`;
+      ${p.needs_check ? `<div class="notice">${T("The statement could not be fully verified against the original (damaged) source files.", "تعذّر التحقق الكامل من نص المسألة مقابل الملفات الأصلية (التالفة).")}</div>` : ""}
+      ${p.notes ? `<details class="editor-notes"><summary>${T("Notes for editors", "ملاحظات للمحررين")}</summary><div${EN}>${esc(p.notes)}</div></details>` : ""}
+      ${hints.map((h, i) => `<details class="reveal"><summary>${T("Hint", "تلميح")} ${i + 1}${h.by ? ` <span class="pill">${esc(h.by)}</span>` : ""}</summary><div${h.ar ? ' lang="ar" dir="rtl"' : EN}>${tex(h.text)}</div></details>`).join("")}
+      ${p.solution ? `<details class="reveal"><summary>${T("Solution", "الحل")}</summary><div${EN}>${tex(p.solution)}</div></details>` : ""}`;
   }
 
   function viewProblem(id, rec) {
@@ -496,47 +543,49 @@ ${items.join("\n\n")}
     const idx = problems.indexOf(p);
     const prev = problems[idx - 1], next = problems[idx + 1];
     const t0 = topicById.get(p.topics[0]);
+    const home = `<a href="#/">${T("Home", "الرئيسية")}</a>`;
     app.innerHTML = `
       <div class="crumbs">${rs
-        ? `<a href="#/">Home</a> › <a href="${rs.back}">${esc(rs.label)}</a> › Recommended`
-        : `<a href="#/">Home</a> › <a href="#/s/${p.subject}/${L}">${esc(subjName(p.subject))}</a>
-        ${t0 ? ` › ${topicLink(t0.id, L)}` : ""}`}</div>
+        ? `${home}${SEP()}<a href="${rs.back}">${esc(rs.label)}</a>${SEP()}${T("Recommended", "مقترحة")}`
+        : `${home}${SEP()}<a href="#/s/${p.subject}/${L}">${esc(subjName(p.subject))}</a>${t0 ? SEP() + topicLink(t0.id, L) : ""}`}</div>
       <article class="problem-view">
-        <div class="row"><h1 style="margin:0">Problem ${p.id}</h1> ${pills(p)}</div>
+        <div class="row"><h1 style="margin:0">${T("Problem", "المسألة")} ${p.id}</h1> ${pills(p)}</div>
         <div class="card" style="margin-top:14px">${problemBody(p, { level: L })}</div>
         <div class="row" style="margin-top:16px">
-          ${rs ? `<a class="btn primary" href="#/random/${encodeURIComponent(rec.scope)}/${rec.L}">Another problem</a>`
-               : t0 ? `<a class="btn" href="#/random/topic:${t0.id}/${L}">Another problem from ${esc(t0.name)}</a>` : ""}
+          ${rs ? `<a class="btn primary" href="#/random/${encodeURIComponent(rec.scope)}/${rec.L}">${T("Another problem", "مسألة أخرى")}</a>`
+               : t0 ? `<a class="btn" href="#/random/topic:${t0.id}/${L}">${T(`Another problem from ${esc(topicName(t0))}`, `مسألة أخرى من ${esc(topicName(t0))}`)}</a>` : ""}
           ${handoutButton(p).replace("btn-mini", "btn")}
-          ${p.ar && p.ar.statement ? `<button class="btn" id="p-lang">${lang === "ar" ? "Show in English" : "اعرض بالعربية"}</button>` : ""}
-          <button class="btn" id="copy">Copy LaTeX</button>
-          <a class="btn" href="${githubEdit(p)}" target="_blank" rel="noopener">Edit on GitHub</a>
+          ${p.ar && p.ar.statement ? `<button class="btn" id="p-lang" lang="${T("ar", "en")}">${T("اعرض بالعربية", "Show in English")}</button>` : ""}
+          <button class="btn" id="copy">${T("Copy LaTeX", "انسخ LaTeX")}</button>
+          <a class="btn" href="${githubEdit(p)}" target="_blank" rel="noopener">${T("Edit on GitHub", "عدّل على GitHub")}</a>
           <span class="spacer"></span>
-          ${prev ? `<a class="btn" href="#/p/${prev.id}">← ${prev.id}</a>` : ""}
-          ${next ? `<a class="btn" href="#/p/${next.id}">${next.id} →</a>` : ""}
+          ${prev ? `<a class="btn" href="#/p/${prev.id}">${T("← " + prev.id, "→ " + prev.id)}</a>` : ""}
+          ${next ? `<a class="btn" href="#/p/${next.id}">${T(next.id + " →", next.id + " ←")}</a>` : ""}
         </div>
       </article>`;
     document.getElementById("copy").onclick = (e) => {
-      const done = () => { e.target.textContent = "Copied"; setTimeout(() => (e.target.textContent = "Copy LaTeX"), 1500); };
+      const label = e.target.textContent;
+      const done = () => { e.target.textContent = T("Copied", "نُسخ"); setTimeout(() => (e.target.textContent = label), 1500); };
       if (navigator.clipboard) navigator.clipboard.writeText(statementSrc(p)).then(done, () => {});
     };
     const pl = document.getElementById("p-lang");
-    if (pl) pl.onclick = () => setLang(lang === "ar" ? "en" : "ar");
+    if (pl) pl.onclick = () => setLang(AR() ? "en" : "ar");
   }
 
   // ---------- recommendations ----------
   // #/random/<scope>/<L> picks a problem and replaces itself with that problem's page,
   // #/p/<id>/rec/<scope>/<L>, which carries an "Another problem" button for the same scope.
   function recScope(scope, L) {
+    if (!LEVELS.includes(L)) return null;
     if (scope.startsWith("topic:")) {
       const t = topicById.get(scope.slice(6));
       if (!t) return null;
       return { pool: (byTopic.get(t.id) || []).filter((p) => inLevel(p, L)),
-               label: `${t.name}, ${levelName(L)}`, back: `#/t/${t.id}/${L}` };
+               label: `${topicName(t)}${T(", ", "، ")}${levelName(L)}`, back: `#/t/${t.id}/${L}` };
     }
     if (scope !== "any" && !A.subjects[scope]) return null;
     return { pool: problems.filter((p) => inLevel(p, L) && (scope === "any" || p.subject === scope)),
-             label: `${scope === "any" ? "Any subject" : subjName(scope)}, ${levelName(L)}`,
+             label: `${scope === "any" ? T("Any subject", "أي مجال") : subjName(scope)}${T(", ", "، ")}${levelName(L)}`,
              back: scope === "any" ? "#/" : `#/s/${scope}/${L}` };
   }
 
@@ -546,7 +595,7 @@ ${items.join("\n\n")}
     if (!r) return viewNotFound();
     if (!scope.startsWith("topic:")) store.set("subject", scope);
     store.set("level", L);
-    if (!r.pool.length) { app.innerHTML = `<p class="muted">No problems for ${esc(r.label)}.</p>`; return; }
+    if (!r.pool.length) { app.innerHTML = `<p class="muted">${T("No problems for", "لا توجد مسائل في")} ${esc(r.label)}.</p>`; return; }
     let fresh = r.pool.filter((p) => !seen.has(p.id));
     if (!fresh.length) { r.pool.forEach((p) => seen.delete(p.id)); fresh = r.pool; }
     const weights = fresh.map((p) => 1 + 3 * (p.stars || 0));
@@ -561,26 +610,28 @@ ${items.join("\n\n")}
   function viewSearch(q) {
     document.getElementById("search-input").value = q;
     if (!searchIndex) {
-      searchIndex = problems.map((p) => [p, [p.id, p.source || "", p.statement.replace(/\\[a-zA-Z]+/g, " "), p.ar ? p.ar.statement.replace(/\\[a-zA-Z]+/g, " ") : "",
-        p.topics.map((t) => (topicById.get(t) || {}).name || "").join(" ")].join(" ").toLowerCase()]);
+      searchIndex = problems.map((p) => [p, [p.id, p.source || "", p.statement.replace(/\\[a-zA-Z]+/g, " "),
+        p.ar ? p.ar.statement.replace(/\\[a-zA-Z]+/g, " ") : "",
+        p.topics.map((t) => { const x = topicById.get(t) || {}; return `${x.name || ""} ${x.name_ar || ""}`; }).join(" ")].join(" ").toLowerCase()]);
     }
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
     const exact = byId.get(q.trim().toUpperCase());
     const hits = terms.length ? searchIndex.filter(([, s]) => terms.every((w) => s.includes(w))).map(([p]) => p) : [];
     app.innerHTML = `
-      <div class="crumbs"><a href="#/">Home</a> › Search</div>
-      <h1>Search</h1>
-      <p class="lead">${hits.length.toLocaleString()} result${hits.length === 1 ? "" : "s"} for “${esc(q)}”${exact ? ` · <a href="#/p/${exact.id}">go to ${exact.id}</a>` : ""}</p>
+      <div class="crumbs"><a href="#/">${T("Home", "الرئيسية")}</a>${SEP()}${T("Search", "بحث")}</div>
+      <h1>${T("Search", "بحث")}</h1>
+      <p class="lead">${T(`${cnt(hits.length, "results")} for “${esc(q)}”`, `${cnt(hits.length, "results")} للبحث عن «${esc(q)}»`)}${exact ? ` · <a href="#/p/${exact.id}">${T("go to", "اذهب إلى")} ${exact.id}</a>` : ""}</p>
       <div id="plist"></div>`;
     // Problems whose source contains the whole query (e.g. "ISL 2015 A1") come first.
     const ql = q.trim().toLowerCase();
     const inSource = (p) => (p.source || "").toLowerCase().includes(ql);
     const ranked = sortProblems(hits).sort((a, b) => inSource(b) - inSource(a));
-    pagedList(document.getElementById("plist"), ranked, null, "Try other words, a source like “ISL 2015”, or an ID like A0012.");
+    pagedList(document.getElementById("plist"), ranked, null,
+      T("Try other words, a source like “ISL 2015”, or an ID like A0012.", "جرّب كلمات أخرى، أو مصدرًا مثل ISL 2015، أو رقم مسألة مثل A0012."));
   }
 
   function viewNotFound() {
-    app.innerHTML = `<h1>Not found</h1><p><a href="#/">Back to the start page</a></p>`;
+    app.innerHTML = `<h1>${T("Not found", "الصفحة غير موجودة")}</h1><p><a href="#/">${T("Back to the start page", "العودة إلى الصفحة الرئيسية")}</a></p>`;
   }
 
   // ---------- router ----------
@@ -589,8 +640,8 @@ ${items.join("\n\n")}
     currentNav = active;
     document.getElementById("topnav").innerHTML = SUBJECTS.map((s) =>
       `<a href="#/s/${s}/${store.get("level", 2)}" class="${active === s ? "active" : ""}">${esc(subjName(s))}</a>`).join("")
-      + `<a href="#/random/${store.get("subject", "any")}/${store.get("level", 2)}" class="${active === "random" ? "active" : ""}">Recommend</a>`
-      + `<a href="#/handout" class="${active === "handout" ? "active" : ""}">Handout${handout.length ? ` (${handout.length})` : ""}</a>`;
+      + `<a href="#/random/${store.get("subject", "any")}/${store.get("level", 2)}" class="${active === "random" ? "active" : ""}">${T("Recommend", "اقترح مسألة")}</a>`
+      + `<a href="#/handout" class="${active === "handout" ? "active" : ""}">${T("Handout", "الملزمة")}${handout.length ? ` (${handout.length})` : ""}</a>`;
   }
 
   function route() {
@@ -623,8 +674,8 @@ ${items.join("\n\n")}
     const id = m && m[1].toUpperCase() + m[2].padStart(4, "0");
     location.hash = id && byId.has(id) ? "#/p/" + id : "#/search/" + encodeURIComponent(q);
   };
-  document.getElementById("lang-toggle").onclick = () => setLang(lang === "ar" ? "en" : "ar");
-  langButton();
+  document.getElementById("lang-toggle").onclick = () => setLang(AR() ? "en" : "ar");
+  chrome();
   window.addEventListener("hashchange", route);
   route();
 })();
