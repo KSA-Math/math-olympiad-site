@@ -28,7 +28,7 @@
     get(k, d) { try { const v = localStorage.getItem("archive:" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("archive:" + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
   };
-  const inLevel = (p, L) => p.levels.includes(L);
+  const inLevel = (p, L) => L === 0 || p.levels.includes(L);   // 0 = any level
   const sortProblems = (list) => list.slice().sort((a, b) => (b.stars - a.stars) || a.id.localeCompare(b.id));
   const starText = (n) => "★".repeat(n);
   const githubEdit = (p) => `${REPO}/edit/main/data/problems/${p.subject}/${p.id}.yaml`;
@@ -55,7 +55,7 @@
   const cnt = (n, w) => count(n, W[w][0], W[w][1]);
 
   const subjName = (s) => T(A.subjects[s].name, A.subjects[s].name_ar || A.subjects[s].name);
-  const levelName = (L) => T(A.levels[L].name, A.levels[L].name_ar || A.levels[L].name);
+  const levelName = (L) => L === 0 ? T("Any level", "أي مستوى") : T(A.levels[L].name, A.levels[L].name_ar || A.levels[L].name);
   const levelDesc = (L) => T(A.levels[L].description || "", A.levels[L].description_ar || A.levels[L].description || "");
   const topicName = (t) => T(t.name, t.name_ar || t.name);
   const byName = (a, b) => topicName(a).localeCompare(topicName(b), lang);
@@ -132,7 +132,7 @@
       out.push(`<span class="pill" title="${T("Also used at these levels", "تُستخدم أيضًا في هذه المستويات")}">${levelPill(p.levels)}</span>`);
     }
     if (p.stars) out.push(`<span class="pill stars" title="${esc(T(A.stars[p.stars] || "", "مسألة مميّزة"))}">${starText(p.stars)}</span>`);
-    if (p.hard) out.push(`<span class="pill hard" title="${T("Marked hard for its level in the source handouts", "مصنّفة صعبة لمستواها في الملزمات الأصلية")}">${T("hard", "صعبة")}</span>`);
+    if (p.hard) out.push(`<span class="pill hard" title="${T("Hard for its level (marked in the source handouts, or IMO Shortlist problem 6 or later)", "صعبة لمستواها (حسب الملزمات الأصلية، أو من مسائل القائمة القصيرة رقم 6 فما بعد)")}">${T("hard", "صعبة")}</span>`);
     return out.join(" ");
   }
 
@@ -323,7 +323,7 @@ ${items.join("\n\n")}
   function viewHome() {
     const counts = Object.fromEntries(SUBJECTS.map((s) => [s, problems.filter((p) => p.subject === s).length]));
     const withSource = problems.filter((p) => p.source).length;
-    const lastL = store.get("level", 2), lastS = store.get("subject", "any");
+    const lastL = store.get("level", 2), recL = store.get("recLevel", lastL), lastS = store.get("subject", "any");
     app.innerHTML = `
       <section class="hero">
         <h1>${T("Olympiad Problem Archive", "أرشيف مسائل الرياضيات")}</h1>
@@ -356,7 +356,7 @@ ${items.join("\n\n")}
             </select>
           </label>
           <label>${T("Level", "المستوى")}
-            <select name="L">${LEVELS.map((L) => `<option value="${L}" ${L === lastL ? "selected" : ""}>${esc(levelName(L))}</option>`).join("")}</select>
+            <select name="L">${[0, ...LEVELS].map((L) => `<option value="${L}" ${L === recL ? "selected" : ""}>${esc(levelName(L))}</option>`).join("")}</select>
           </label>
           <label id="rec-topic-wrap" hidden>${T("Topic", "الموضوع")}
             <select name="t"></select>
@@ -584,17 +584,18 @@ ${items.join("\n\n")}
   // #/random/<scope>/<L> picks a problem and replaces itself with that problem's page,
   // #/p/<id>/rec/<scope>/<L>, which carries an "Another problem" button for the same scope.
   function recScope(scope, L) {
-    if (!LEVELS.includes(L)) return null;
+    if (L !== 0 && !LEVELS.includes(L)) return null;
+    const backL = L || store.get("level", 2);
     if (scope.startsWith("topic:")) {
       const t = topicById.get(scope.slice(6));
       if (!t) return null;
       return { pool: (byTopic.get(t.id) || []).filter((p) => inLevel(p, L)),
-               label: `${topicName(t)}${T(", ", "، ")}${levelName(L)}`, back: `#/t/${t.id}/${L}` };
+               label: `${topicName(t)}${T(", ", "، ")}${levelName(L)}`, back: `#/t/${t.id}/${backL}` };
     }
     if (scope !== "any" && !A.subjects[scope]) return null;
     return { pool: problems.filter((p) => inLevel(p, L) && (scope === "any" || p.subject === scope)),
              label: `${scope === "any" ? T("Any subject", "أي مجال") : subjName(scope)}${T(", ", "، ")}${levelName(L)}`,
-             back: scope === "any" ? "#/" : `#/s/${scope}/${L}` };
+             back: scope === "any" ? "#/" : `#/s/${scope}/${backL}` };
   }
 
   const seen = new Set();
@@ -602,7 +603,8 @@ ${items.join("\n\n")}
     const r = recScope(scope, L);
     if (!r) return viewNotFound();
     if (!scope.startsWith("topic:")) store.set("subject", scope);
-    store.set("level", L);
+    store.set("recLevel", L);
+    if (L) store.set("level", L);
     if (!r.pool.length) { app.innerHTML = `<p class="muted">${T("No problems for", "لا توجد مسائل في")} ${esc(r.label)}.</p>`; return; }
     let fresh = r.pool.filter((p) => !seen.has(p.id));
     if (!fresh.length) { r.pool.forEach((p) => seen.delete(p.id)); fresh = r.pool; }
@@ -661,11 +663,11 @@ ${items.join("\n\n")}
     else if (view === "s") { viewSubject(a, Number(b)); active = a; }
     else if (view === "t") { viewTopic(a, Number(b)); active = (topicById.get(a) || {}).subject; }
     else if (view === "p") {
-      const rec = b === "rec" && parts[3] ? { scope: parts[3], L: Number(parts[4]) || 2 } : null;
+      const rec = b === "rec" && parts[3] ? { scope: parts[3], L: parts[4] === "0" ? 0 : Number(parts[4]) || 2 } : null;
       viewProblem(a, rec);
       active = rec ? "random" : (byId.get(a) || {}).subject;
     }
-    else if (view === "random") { viewRandom(a || "any", Number(b) || 2); active = "random"; }
+    else if (view === "random") { viewRandom(a || "any", b === "0" ? 0 : Number(b) || 2); active = "random"; }
     else if (view === "search") viewSearch(parts.slice(1).join("/"));
     else if (view === "handout") { viewHandout(); active = "handout"; }
     else viewNotFound();
